@@ -14,16 +14,19 @@ public class CardDisplay : MonoBehaviour
     public CanvasGroup canvasGroup;
 
     [Header("Настройки Управления")]
-    public float movementLimit = 450f;   // Полный ход (разблокировано)
-    public float lockedLimit = 80f;      // Короткий ход (заблокировано) - карта упрется сюда
-    public float unlockDistance = 50f;   // Насколько близко к центру надо вернуть мышь, чтобы снять блок
+    public float movementLimit = 450f;
+    public float lockedLimit = 80f;      
+    public float unlockDistance = 50f;   
     public float choiceThreshold = 300f;
     public float sensitivity = 1.0f;
     
     [Header("Настройки Анимации")]
     public float hiddenY = 2500f; 
-    public float fallDuration = 0.7f;
+    public float fallDuration = 0.6f;     // Чуть ускорил падение для динамики
     public float interactionDelay = 0.5f; 
+
+    [Header("Typewriter Effect")]
+    public float typingSpeed = 0.02f; // Скорость появления одной буквы (сек)
 
     [Header("Сочность Текста")]
     public float minScale = 0.6f;
@@ -47,6 +50,9 @@ public class CardDisplay : MonoBehaviour
     private float _currentVerticalOffset = 0f; 
     private float _currentAngularOffset = 0f;
 
+    // Твин для текста, чтобы можно было остановить
+    private Tween _typewriterTween;
+
     void Awake()
     {
         _rectTransform = GetComponent<RectTransform>();
@@ -59,7 +65,10 @@ public class CardDisplay : MonoBehaviour
         CurrentData = data;
         characterImage.sprite = data.characterSprite;
         nameText.text = data.characterName;
+        
+        // 1. Устанавливаем текст, но скрываем все буквы
         questionText.text = data.dialogueText;
+        questionText.maxVisibleCharacters = 0; 
 
         if (actionText) actionText.gameObject.SetActive(false);
         
@@ -92,21 +101,46 @@ public class CardDisplay : MonoBehaviour
         _isLocked = false;
         _isInteractable = false;
 
-        // 1. ВКЛЮЧАЕМ ПРЕДОХРАНИТЕЛЬ ПРИ ВЫЛЕТЕ
         _safetyLock = true;
         
         DOTween.Kill(this); 
+        // Убиваем старый твин текста, если он вдруг еще идет
+        if (_typewriterTween != null) _typewriterTween.Kill();
 
+        // Анимация падения
         DOTween.To(() => _currentVerticalOffset, x => _currentVerticalOffset = x, 0f, fallDuration)
             .SetEase(Ease.OutBack).SetTarget(this);
 
         DOTween.To(() => _currentAngularOffset, x => _currentAngularOffset = x, 0f, fallDuration)
             .SetEase(Ease.OutBack).SetTarget(this);
             
+        // ЗАПУСК ТЕКСТА
+        // Мы запускаем текст чуть раньше, чем закончится падение (на 80%), чтобы было динамичнее
+        DOVirtual.DelayedCall(fallDuration * 0.8f, () => 
+        {
+            StartTypewriter();
+        }).SetTarget(this);
+
+        // Разблокировка управления
         DOVirtual.DelayedCall(interactionDelay, () => 
         {
             _isInteractable = true;
         }).SetTarget(this);
+    }
+
+    void StartTypewriter()
+    {
+        int totalChars = questionText.text.Length;
+        questionText.maxVisibleCharacters = 0;
+
+        // Рассчитываем длительность: длина текста * скорость одной буквы
+        float duration = totalChars * typingSpeed;
+
+        // Анимируем число видимых символов от 0 до totalChars
+        _typewriterTween = DOTween.To(x => questionText.maxVisibleCharacters = (int)x, 0, totalChars, duration)
+            .SetEase(Ease.Linear)
+            .SetTarget(this);
+            // .OnUpdate(() => { PlayTypeSound(); }) // Сюда можно добавить звук "тук-тук"
     }
 
     void Update()
@@ -126,32 +160,24 @@ public class CardDisplay : MonoBehaviour
             rawDiff = (mousePos.x - screenCenter) * sensitivity;
         }
 
-        // --- ЛОГИКА ОГРАНИЧЕНИЯ (CLAMP) ---
-        
-        float currentLimit = movementLimit; // По умолчанию полный ход
+        // --- CLAMP LOGIC ---
+        float currentLimit = movementLimit; 
 
         if (_safetyLock)
         {
-            // Если мышь вернулась в центр - снимаем замок
             if (Mathf.Abs(rawDiff) < unlockDistance)
             {
                 _safetyLock = false;
             }
             else
             {
-                // Пока замок висит - ограничиваем движение коротким поводком
                 currentLimit = lockedLimit;
             }
         }
 
-        // Ключевой момент: Мы используем Clamp с динамическим лимитом
-        // Если rawDiff = 300, а limit = 80 -> applied = 80.
-        // Если rawDiff = 50, а limit = 80 -> applied = 50.
-        // Это и есть "1-2-3-4 совпадают, а 5-6 обрезаются".
         float appliedDiff = Mathf.Clamp(rawDiff, -currentLimit, currentLimit);
 
-        // --- ФИЗИКА КАРТЫ ---
-        // Lerp для плавности
+        // Physics
         float smoothX = Mathf.Lerp(_rectTransform.anchoredPosition.x, appliedDiff, Time.deltaTime * 20f);
         _rectTransform.anchoredPosition = new Vector2(smoothX, _currentVerticalOffset);
 
@@ -160,7 +186,6 @@ public class CardDisplay : MonoBehaviour
 
         UpdateVisuals(appliedDiff);
         
-        // Клик разрешен только если нет блокировки (карта на длинном поводке) и анимация прошла
         if (_isInteractable && !_safetyLock)
         {
             HandleInput(appliedDiff);
@@ -169,7 +194,6 @@ public class CardDisplay : MonoBehaviour
 
     void UpdateVisuals(float diff)
     {
-        // Скрываем если карта падает или ВКЛЮЧЕН предохранитель
         if (_currentVerticalOffset > 150f || _safetyLock) 
         {
             if (actionText && actionText.gameObject.activeSelf) actionText.gameObject.SetActive(false);
@@ -179,7 +203,7 @@ public class CardDisplay : MonoBehaviour
 
         float absDiff = Mathf.Abs(diff);
         
-        // Deadzone (чуть больше lockedLimit, чтобы текст не мелькал, когда карта упирается в стену)
+        // Deadzone
         if (absDiff < lockedLimit + 10f)
         {
              if (actionText && actionText.gameObject.activeSelf) actionText.gameObject.SetActive(false);
@@ -236,6 +260,10 @@ public class CardDisplay : MonoBehaviour
     {
         _isLocked = true;
         _isInteractable = false;
+        
+        // ВАЖНО: Если игрок выбрал быстро, сразу показываем весь текст (или останавливаем)
+        if (_typewriterTween != null) _typewriterTween.Kill();
+        questionText.maxVisibleCharacters = 9999; 
         
         if (actionText) actionText.gameObject.SetActive(false);
 

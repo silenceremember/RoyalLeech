@@ -56,7 +56,7 @@ Material:
     - _PixelDensity: 600
     - _PixelFilter: 700
     - _PixelSize: 200
-    - _Pixels: 500
+    - _Pixels: 400
     - _Radius: 2
     - _RidgeSharpness: 2
     - _Scale: 4
