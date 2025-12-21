@@ -8,12 +8,6 @@ Shader "UI/VoidText"
         [Header(Pixelation)]
         _Pixels ("Pixel Density", Float) = 100.0
         
-        [Header(Shadow)]
-        _ShadowColor ("Shadow Color", Color) = (0, 0, 0, 0.5)
-        // Сдвиг тени в "Жирных Пикселях" (целые числа: 1, 2, 3...)
-        _ShadowShiftX ("Shadow Shift X (Px)", Float) = 4.0
-        _ShadowShiftY ("Shadow Shift Y (Px)", Float) = -4.0
-        
         [Header(Boil Effect)]
         _DistortStrength ("Boil Strength", Range(0, 0.05)) = 0.005
         _Speed ("Boil Speed", Float) = 5.0
@@ -67,9 +61,7 @@ Shader "UI/VoidText"
             float4 _ClipRect;
             
             float _Pixels;
-            float4 _ShadowColor;
-            float _ShadowShiftX;
-            float _ShadowShiftY;
+            // Shadow properties removed
             float _DistortStrength;
             float _Speed;
 
@@ -106,37 +98,22 @@ Shader "UI/VoidText"
                 // 2. Пикселизация
                 float2 pixelUV = floor(distortedUV * _Pixels) / _Pixels;
 
-                // 3. Расчет Тени (Сдвиг строго по сетке пикселей)
-                float2 shadowOffset = float2(_ShadowShiftX, _ShadowShiftY) / _Pixels;
-                float2 shadowUV = pixelUV - shadowOffset;
-
-                // 4. Чтение
+                // 3. Чтение (Shadow Removed)
                 float d_text = GetSDF(pixelUV);
-                float d_shadow = GetSDF(shadowUV);
                 float threshold = 0.5;
 
-                // 5. Маски
+                // 4. Маски
                 float isFace = step(threshold, d_text);
-                float isShadow = step(threshold, d_shadow);
 
-                // 6. Сборка Цвета
+                // 5. Сборка Цвета
                 float4 finalColor = float4(0,0,0,0);
 
-                // Слой Тени
-                if (isShadow > 0.5) finalColor = _ShadowColor;
-
-                // Слой Лица (Перекрывает тень)
                 if (isFace > 0.5) 
                 {
                     // Используем ТОЛЬКО цвет из TMP (Градиент)
                     finalColor = IN.color;
                 }
-                else 
-                {
-                    // Если это тень, учитываем общую прозрачность объекта (Fade In/Out)
-                    finalColor.a *= IN.color.a;
-                }
-
+                
                 if (finalColor.a < 0.01) discard;
 
                 finalColor.a *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);

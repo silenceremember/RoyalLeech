@@ -171,14 +171,34 @@ public class Shadow : MonoBehaviour
         }
 
         // 2. Sync Visuals
+        Color finalColor = shadowColor;
+        float targetAlpha = 1f;
+
         if (targetText != null && _shadowText != null)
         {
             SyncText();
+            targetAlpha = targetText.alpha;
+            // TMP specific: multiply vertex color alpha? Or just use .color?
+            // TMP usually uses .alpha or .color.a. Let's use simple color assignment.
+             finalColor.a = shadowColor.a * targetAlpha;
+            _shadowText.color = finalColor;
         }
         else if (targetGraphic is Image srcImg && _shadowImage != null)
         {
             if (_shadowImage.sprite != srcImg.sprite) _shadowImage.sprite = srcImg.sprite;
             if (_parentRect != null) _shadowRect.sizeDelta = _parentRect.sizeDelta;
+            
+            targetAlpha = srcImg.color.a;
+            finalColor.a = shadowColor.a * targetAlpha;
+            _shadowImage.color = finalColor;
+        }
+        else if (targetSpriteRenderer != null && _shadowSprite != null)
+        {
+            if (_shadowSprite.sprite != targetSpriteRenderer.sprite) _shadowSprite.sprite = targetSpriteRenderer.sprite;
+            
+            targetAlpha = targetSpriteRenderer.color.a;
+            finalColor.a = shadowColor.a * targetAlpha;
+            _shadowSprite.color = finalColor;
         }
 
         // 3. Transform

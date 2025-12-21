@@ -1905,7 +1905,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Shadow
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
-  intensity: 0.05
+  intensity: 0.02
   targetGraphic: {fileID: 0}
   targetSpriteRenderer: {fileID: 0}
   targetText: {fileID: 0}
