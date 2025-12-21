@@ -80,6 +80,7 @@ public class CardDisplay : MonoBehaviour
         _isFront = isFront;
         _isInteractable = false;
         _safetyLock = false;
+        _isUnlockAnimating = false; // Важно сбросить анимацию
         
         if (isFront)
         {

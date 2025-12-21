@@ -15,9 +15,7 @@ public class GameManager : MonoBehaviour
     public CardDisplay cardTemplate; // Ссылка на объект-шаблон в сцене
     public CardLoader cardLoader;    // Ссылка на загрузчик JSON
 
-    // Приватные переменные для активных карт (создаются из шаблона)
-    private CardDisplay _frontCard;
-    private CardDisplay _backCard;
+    private CardDisplay _activeCard;
 
     [Header("Данные")]
     public List<CardData> allCards = new List<CardData>();
@@ -85,69 +83,40 @@ public class GameManager : MonoBehaviour
 
     void InitCards()
     {
-        // --- ЭТАП СПАВНА ---
-        if (cardTemplate == null)
-        {
-            Debug.LogError("[GameManager] Не назначен Card Template!");
-            return;
-        }
+        if (cardTemplate == null) return;
 
-        // Включаем шаблон перед копированием (если он был выключен)
+        // 1. Создаем единственную карту
         cardTemplate.gameObject.SetActive(true);
-
-        // Создаем две копии шаблона в том же Canvas
-        _frontCard = Instantiate(cardTemplate, cardTemplate.transform.parent);
-        _frontCard.name = "Card_Active"; // Имя в иерархии
-        
-        _backCard = Instantiate(cardTemplate, cardTemplate.transform.parent);
-        _backCard.name = "Card_Next";
-
-        // Отключаем оригинал шаблона, он больше не нужен
+        _activeCard = Instantiate(cardTemplate, cardTemplate.transform.parent);
+        _activeCard.name = "Card_Active";
         cardTemplate.gameObject.SetActive(false);
 
-        // --- ЭТАП НАСТРОЙКИ ---
+        // 2. Получаем данные
+        CardData data = GetNextCardData();
 
-        // Берем данные для двух первых карт
-        CardData data1 = GetNextCardData();
-        CardData data2 = GetNextCardData();
+        // 3. Настраиваем как "Скрытую наверху" (isFront = false)
+        // Это телепортирует её на hiddenY
+        _activeCard.Setup(data, false);
 
-        // Настраиваем обе карты как "Задние" (спрятаны наверху, isFront = false)
-        _frontCard.Setup(data1, false);
-        _backCard.Setup(data2, false);
-
-        // Front должен быть последним в иерархии (поверх остальных)
-        _frontCard.transform.SetAsLastSibling();
-
-        // --- ЭТАП ЗАПУСКА ---
-        
-        // Делаем паузу 0.5 сек для кинематографичности и роняем первую карту
+        // 4. Падение через паузу
         DOVirtual.DelayedCall(0.5f, () => 
         {
-            _frontCard.AnimateToFront();
+            _activeCard.AnimateToFront();
         });
     }
 
-    // Вызывается из CardDisplay, когда карта улетела за экран после выбора
     public void OnCardAnimationComplete()
     {
-        // 1. Меняем местами ссылки: 
-        // Бывшая передняя (frontCard) улетела и станет задней.
-        // Бывшая задняя (backCard) станет передней.
-        CardDisplay temp = _frontCard;
-        _frontCard = _backCard;
-        _backCard = temp;
-
-        // 2. Новая передняя карта (которая висела наверху) падает вниз
-        // Ставим её поверх всех в UI
-        _frontCard.transform.SetAsLastSibling();
-        _frontCard.AnimateToFront(); 
-
-        // 3. Старая карта (которая улетела) перезагружается
+        // 1. Получаем новые данные
         CardData newData = GetNextCardData();
-        // Настраиваем её как новую "Заднюю" (она сразу телепортируется наверх)
-        _backCard.Setup(newData, false);
-        // Ставим её в низ иерархии UI
-        _backCard.transform.SetAsFirstSibling(); 
+
+        // 2. Перезагружаем ТУ ЖЕ карту
+        // Setup с false мгновенно телепортирует её наверх и обновляет текст/картинку
+        _activeCard.Setup(newData, false);
+
+        // 3. Сразу роняем её вниз
+        // (Без задержки, чтобы динамика была быстрее, или с минимальной)
+        _activeCard.AnimateToFront();
     }
 
     // Получение следующей карты из колоды с авто-решаффлом
