@@ -1756,6 +1756,7 @@ GameObject:
   - component: {fileID: 1330394592}
   - component: {fileID: 1330394594}
   - component: {fileID: 1330394593}
+  - component: {fileID: 1330394595}
   m_Layer: 5
   m_Name: Background
   m_TagString: Untagged
@@ -1770,13 +1771,13 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1330394591}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 1000}
   m_LocalScale: {x: 1.34, y: 1.34, z: 1.34}
-  m_ConstrainProportionsScale: 1
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 231931112}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -180, y: 180, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
@@ -1820,6 +1821,27 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1330394591}
   m_CullTransparentMesh: 1
+--- !u!114 &1330394595
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1330394591}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e19e2d593fc437643966e0db80e86a52, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BackgroundPlaneAutoFit
+  targetCamera: {fileID: 519420031}
+  distanceFromCamera: 1000
+  canvasReferenceSize: 1000
+  scaleMultiplier: 16.4
+  updateEveryFrame: 1
+  lastFOV: 34
+  lastAspect: 0.5625
+  lastCameraPosition: {x: 0, y: 0, z: -10}
+  lastCameraRotation: {x: 0, y: 0, z: 0, w: 1}
 --- !u!1 &1505369101
 GameObject:
   m_ObjectHideFlags: 0
