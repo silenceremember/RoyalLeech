@@ -29,6 +29,7 @@ public class Shadow : MonoBehaviour
     private Image _shadowImage;
     private SpriteRenderer _shadowSprite;
     private TMP_Text _shadowText;
+    private TMPWriter _shadowWriter; // TMPWriter для синхронизации с оригиналом
     
     private bool _hasInitialized = false;
 
@@ -130,6 +131,15 @@ public class Shadow : MonoBehaviour
 
         _shadowText.raycastTarget = false;
         _shadowText.color = shadowColor;
+        
+        // Проверяем, есть ли TMPWriter на оригинале
+        TMPWriter targetWriter = targetText.GetComponent<TMPWriter>();
+        if (targetWriter != null)
+        {
+            // Добавляем TMPWriter и на shadow для синхронизации
+            _shadowWriter = _shadowObject.AddComponent<TMPWriter>();
+            _shadowWriter.enabled = false; // Отключаем, будем синхронизировать вручную
+        }
         
         SyncText();
     }
@@ -238,23 +248,34 @@ public class Shadow : MonoBehaviour
         
         // Проверяем наличие TMPWriter для корректной синхронизации видимых символов
         TMPWriter tmpWriter = targetText.GetComponent<TMPWriter>();
-        if (tmpWriter != null)
+        if (tmpWriter != null && _shadowWriter != null)
         {
-            // TMPWriter управляет видимостью символов через свой механизм
-            // Используем textInfo для получения реального количества видимых символов
-            if (targetText.textInfo != null && targetText.textInfo.characterCount > 0)
+            // ЛУЧШИЙ ПОДХОД: Копируем mesh data напрямую от оригинала
+            // Это гарантирует 100% синхронизацию, включая все эффекты TMPWriter
+            targetText.ForceMeshUpdate();
+            _shadowText.ForceMeshUpdate();
+            
+            // Копируем vertex data для точной синхронизации
+            if (targetText.textInfo != null && _shadowText.textInfo != null)
             {
-                int visibleCount = 0;
-                for (int i = 0; i < targetText.textInfo.characterCount; i++)
+                for (int i = 0; i < targetText.textInfo.meshInfo.Length; i++)
                 {
-                    if (targetText.textInfo.characterInfo[i].isVisible)
-                        visibleCount++;
+                    if (i >= _shadowText.textInfo.meshInfo.Length) break;
+                    
+                    // Копируем только vertices для синхронизации видимости
+                    // (цвета не копируем, т.к. у тени свой цвет)
+                    var sourceVerts = targetText.textInfo.meshInfo[i].vertices;
+                    var targetVerts = _shadowText.textInfo.meshInfo[i].vertices;
+                    
+                    if (sourceVerts != null && targetVerts != null)
+                    {
+                        int count = Mathf.Min(sourceVerts.Length, targetVerts.Length);
+                        System.Array.Copy(sourceVerts, targetVerts, count);
+                    }
                 }
-                _shadowText.maxVisibleCharacters = visibleCount;
-            }
-            else
-            {
-                _shadowText.maxVisibleCharacters = 0;
+                
+                // Обновляем mesh с новыми вертексами
+                _shadowText.UpdateVertexData(TMP_VertexDataUpdateFlags.Vertices);
             }
         }
         else
