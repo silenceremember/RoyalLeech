@@ -7,6 +7,7 @@ using TMPEffects.Components;
 /// Adds a dynamic shadow to the object.
 /// Creates a separate shadow object as a sibling (rendered behind).
 /// Supports Image, SpriteRenderer, and TextMeshPro (UI & World).
+/// For text, applies per-character shadow offset for maximum quality.
 /// </summary>
 public class Shadow : MonoBehaviour
 {
@@ -14,8 +15,12 @@ public class Shadow : MonoBehaviour
     public Color shadowColor = new Color(0, 0, 0, 0.5f);
     
     [Tooltip("How far the shadow is cast. Replaces global intensity.")]
-    public float intensity = 15f; 
-
+    public float intensity = 15f;
+    
+    [Header("Quality Settings")]
+    [Tooltip("Enable per-character shadow for text (higher quality, each letter casts its own shadow)")]
+    public bool perCharacterShadow = true;
+    
     [Header("Targets (Auto-filled)")]
     public Graphic targetGraphic;
     public SpriteRenderer targetSpriteRenderer;
@@ -189,10 +194,18 @@ public class Shadow : MonoBehaviour
         {
             SyncText();
             targetAlpha = targetText.alpha;
-            // TMP specific: multiply vertex color alpha? Or just use .color?
-            // TMP usually uses .alpha or .color.a. Let's use simple color assignment.
-             finalColor.a = shadowColor.a * targetAlpha;
+            finalColor.a = shadowColor.a * targetAlpha;
             _shadowText.color = finalColor;
+            
+            // Apply per-character shadow if enabled
+            if (perCharacterShadow)
+            {
+                ApplyPerCharacterShadow();
+            }
+            else
+            {
+                ApplySimpleShadowOffset();
+            }
         }
         else if (targetGraphic is Image srcImg && _shadowImage != null)
         {
@@ -202,6 +215,8 @@ public class Shadow : MonoBehaviour
             targetAlpha = srcImg.color.a;
             finalColor.a = shadowColor.a * targetAlpha;
             _shadowImage.color = finalColor;
+            
+            ApplySimpleShadowOffset();
         }
         else if (targetSpriteRenderer != null && _shadowSprite != null)
         {
@@ -210,21 +225,31 @@ public class Shadow : MonoBehaviour
             targetAlpha = targetSpriteRenderer.color.a;
             finalColor.a = shadowColor.a * targetAlpha;
             _shadowSprite.color = finalColor;
+            
+            ApplySimpleShadowOffset();
         }
 
-        // 3. Transform
-        _shadowObject.transform.localScale = transform.localScale; // No multiplier
+        // 3. Transform (scale and rotation sync)
+        _shadowObject.transform.localScale = transform.localScale;
         _shadowObject.transform.localRotation = transform.localRotation;
-
-        // 4. Position
+        
+        // Z Flat for UI elements
+        if (_parentRect != null && targetText != null && perCharacterShadow)
+        {
+            // For per-character shadow, keep position synced
+            _shadowObject.transform.position = transform.position;
+            Vector3 lc = _shadowObject.transform.localPosition;
+            lc.z = transform.localPosition.z;
+            _shadowObject.transform.localPosition = lc;
+        }
+    }
+    
+    void ApplySimpleShadowOffset()
+    {
+        // For non-text objects or simple shadow mode
         Vector2 screenPos = GetScreenPosition();
-        
-        // Get Direction Factor from LightSource (Perspective)
         Vector2 directionFactor = ShadowLightSource.Instance.GetShadowDirection(screenPos);
-        
-        // Apply local Intensity
         Vector2 offset = directionFactor * intensity;
-
         _shadowObject.transform.position = transform.position + (Vector3)offset;
         
         // Z Flat
@@ -233,6 +258,88 @@ public class Shadow : MonoBehaviour
              Vector3 lc = _shadowObject.transform.localPosition;
              lc.z = transform.localPosition.z;
              _shadowObject.transform.localPosition = lc;
+        }
+    }
+    
+    void ApplyPerCharacterShadow()
+    {
+        if (_shadowText == null || targetText == null) return;
+        
+        // Force mesh update
+        targetText.ForceMeshUpdate();
+        _shadowText.ForceMeshUpdate();
+        
+        TMP_TextInfo textInfo = _shadowText.textInfo;
+        if (textInfo == null) return;
+        
+        int characterCount = textInfo.characterCount;
+        
+        // Process each visible character
+        for (int i = 0; i < characterCount; i++)
+        {
+            TMP_CharacterInfo charInfo = textInfo.characterInfo[i];
+            
+            // Skip invisible characters
+            if (!charInfo.isVisible) continue;
+            
+            int materialIndex = charInfo.materialReferenceIndex;
+            int vertexIndex = charInfo.vertexIndex;
+            
+            // Safety check
+            if (materialIndex >= textInfo.meshInfo.Length) continue;
+            
+            // Get the vertices for this character
+            Vector3[] sourceVertices = targetText.textInfo.meshInfo[materialIndex].vertices;
+            Vector3[] destinationVertices = textInfo.meshInfo[materialIndex].vertices;
+            
+            // Safety check
+            if (vertexIndex + 3 >= destinationVertices.Length || vertexIndex + 3 >= sourceVertices.Length) continue;
+            
+            // Calculate character center in local space
+            Vector3 charCenter = (sourceVertices[vertexIndex + 0] + 
+                                 sourceVertices[vertexIndex + 1] + 
+                                 sourceVertices[vertexIndex + 2] + 
+                                 sourceVertices[vertexIndex + 3]) * 0.25f;
+            
+            // Convert character center to world space
+            Vector3 charWorldPos = targetText.transform.TransformPoint(charCenter);
+            
+            // Get screen position for this character
+            Vector2 charScreenPos = GetScreenPositionForPoint(charWorldPos);
+            
+            // Get shadow direction for this specific character
+            Vector2 directionFactor = ShadowLightSource.Instance.GetShadowDirection(charScreenPos);
+            Vector2 offsetScreen = directionFactor * intensity;
+            
+            // Convert screen space offset to local space of the shadow text
+            Vector3 offsetLocal;
+            if (_parentRect != null) // UI Element
+            {
+                // For UI, screen space offset needs to be divided by canvas scale factor
+                Canvas canvas = GetComponentInParent<Canvas>();
+                float scaleFactor = (canvas != null) ? canvas.scaleFactor : 1f;
+                
+                // Convert screen pixels to canvas units
+                offsetLocal = new Vector3(offsetScreen.x / scaleFactor, offsetScreen.y / scaleFactor, 0);
+            }
+            else // World Space Text
+            {
+                // For world space, treat offset as world units
+                offsetLocal = _shadowText.transform.InverseTransformDirection(new Vector3(offsetScreen.x, offsetScreen.y, 0));
+            }
+            
+            // Apply offset to all 4 vertices of this character
+            destinationVertices[vertexIndex + 0] = sourceVertices[vertexIndex + 0] + offsetLocal;
+            destinationVertices[vertexIndex + 1] = sourceVertices[vertexIndex + 1] + offsetLocal;
+            destinationVertices[vertexIndex + 2] = sourceVertices[vertexIndex + 2] + offsetLocal;
+            destinationVertices[vertexIndex + 3] = sourceVertices[vertexIndex + 3] + offsetLocal;
+        }
+        
+        // Update all meshes
+        for (int i = 0; i < textInfo.meshInfo.Length; i++)
+        {
+            textInfo.meshInfo[i].mesh.vertices = textInfo.meshInfo[i].vertices;
+            _shadowText.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
         }
     }
 
@@ -248,7 +355,7 @@ public class Shadow : MonoBehaviour
         
         // Проверяем наличие TMPWriter для корректной синхронизации видимых символов
         TMPWriter tmpWriter = targetText.GetComponent<TMPWriter>();
-        if (tmpWriter != null && _shadowWriter != null)
+        if (tmpWriter != null && _shadowWriter != null && !perCharacterShadow)
         {
             // ЛУЧШИЙ ПОДХОД: Копируем mesh data напрямую от оригинала
             // Это гарантирует 100% синхронизацию, включая все эффекты TMPWriter
@@ -292,6 +399,11 @@ public class Shadow : MonoBehaviour
 
     Vector2 GetScreenPosition()
     {
+        return GetScreenPositionForPoint(transform.position);
+    }
+    
+    Vector2 GetScreenPositionForPoint(Vector3 worldPos)
+    {
         Vector2 screenPos = Vector2.zero;
         
         if (_parentRect != null) // UI
@@ -302,9 +414,9 @@ public class Shadow : MonoBehaviour
             if (cam == null) cam = Camera.main;
 
             if (cam != null)
-                 screenPos = RectTransformUtility.WorldToScreenPoint(cam, transform.position);
+                 screenPos = RectTransformUtility.WorldToScreenPoint(cam, worldPos);
             else
-                 screenPos = RectTransformUtility.WorldToScreenPoint(null, transform.position);
+                 screenPos = RectTransformUtility.WorldToScreenPoint(null, worldPos);
             
             screenPos -= new Vector2(Screen.width / 2f, Screen.height / 2f);
         }
@@ -312,7 +424,7 @@ public class Shadow : MonoBehaviour
         {
              if (Camera.main != null)
              {
-                 Vector2 vp = Camera.main.WorldToViewportPoint(transform.position);
+                 Vector2 vp = Camera.main.WorldToViewportPoint(worldPos);
                  screenPos = (vp - new Vector2(0.5f, 0.5f)) * new Vector2(Screen.width, Screen.height);
              }
         }

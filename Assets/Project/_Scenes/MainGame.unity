@@ -270,7 +270,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Shadow
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
-  intensity: 0.2
+  intensity: 3
+  perCharacterShadow: 1
   targetGraphic: {fileID: 0}
   targetSpriteRenderer: {fileID: 0}
   targetText: {fileID: 0}
@@ -878,6 +879,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BalatroShadow
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
   intensity: 3
+  perCharacterShadow: 1
   targetGraphic: {fileID: 0}
   targetSpriteRenderer: {fileID: 0}
   targetText: {fileID: 0}
@@ -1033,7 +1035,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Shadow
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
-  intensity: 0.2
+  intensity: 3
+  perCharacterShadow: 1
   targetGraphic: {fileID: 0}
   targetSpriteRenderer: {fileID: 0}
   targetText: {fileID: 0}
@@ -1602,7 +1605,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Shadow
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
-  intensity: 0.5
+  intensity: 5
+  perCharacterShadow: 1
   targetGraphic: {fileID: 0}
   targetSpriteRenderer: {fileID: 0}
   targetText: {fileID: 0}
@@ -1971,7 +1975,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Shadow
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
-  intensity: 0.2
+  intensity: 3
+  perCharacterShadow: 1
   targetGraphic: {fileID: 0}
   targetSpriteRenderer: {fileID: 0}
   targetText: {fileID: 0}
