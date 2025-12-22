@@ -270,7 +270,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Shadow
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
-  intensity: 3
+  intensity: 5
   perCharacterShadow: 1
   targetGraphic: {fileID: 0}
   targetSpriteRenderer: {fileID: 0}
@@ -1035,7 +1035,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Shadow
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
-  intensity: 3
+  intensity: 5
   perCharacterShadow: 1
   targetGraphic: {fileID: 0}
   targetSpriteRenderer: {fileID: 0}
