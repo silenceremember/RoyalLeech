@@ -1046,11 +1046,60 @@ MonoBehaviour:
   m_GameObject: {fileID: 646137484}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0a80440d788497340b35c2fb79f1ecf0, type: 3}
+  m_Script: {fileID: 11500000, guid: 6cf9594e2a3b8eb4eaf3cc57f263076f, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TextAnimator
-  customPresets: []
-  timeScale: 1
+  m_EditorClassIdentifier: TMPEffects::TMPEffects.Components.TMPWriter
+  OnTextEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnCharacterShown:
+    m_PersistentCalls:
+      m_Calls: []
+  OnStartWriter:
+    m_PersistentCalls:
+      m_Calls: []
+  OnStopWriter:
+    m_PersistentCalls:
+      m_Calls: []
+  OnWaitStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  OnWaitEnded:
+    m_PersistentCalls:
+      m_Calls: []
+  OnFinishWriter:
+    m_PersistentCalls:
+      m_Calls: []
+  OnSkipWriter:
+    m_PersistentCalls:
+      m_Calls: []
+  OnResetWriter:
+    m_PersistentCalls:
+      m_Calls: []
+  keywordDatabase: {fileID: 0}
+  sceneKeywordDatabase: {fileID: 0}
+  database: {fileID: 11400000, guid: 290ad04254a96934aa269d5b8d258008, type: 2}
+  maySkip: 1
+  writeOnStart: 1
+  writeOnNewText: 1
+  useScaledTime: 1
+  delays:
+    delay: 0.035
+    whitespaceDelay: 0
+    whitespaceDelayType: 0
+    linebreakDelay: 0
+    linebreakDelayType: 0
+    punctuationDelay: 0
+    punctuationDelayType: 0
+    visibleDelay: 0
+    visibleDelayType: 0
+  sceneCommands:
+    _serializedList: []
+  useDefaultDatabase: 1
+  useDefaultKeywordDatabase: 0
+  initDatabase: 1
+  eventsEnabled: 0
+  commandsEnabled: 1
 --- !u!1 &700920394
 GameObject:
   m_ObjectHideFlags: 0
@@ -1378,7 +1427,6 @@ MonoBehaviour:
   hiddenY: 2500
   fallDuration: 0.6
   interactionDelay: 0.5
-  typingSpeed: 0.02
   lockedInputScale: 0.15
   tiltStrength: {x: 20, y: 15}
   tiltSpeed: 10
@@ -1571,12 +1619,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6af0bab5ef8bc4a4a86b6d886799dd3c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::JuicyText
-  baseRotationAmount: 15
-  basePositionAmount: 5
-  speed: 20
-  scaleJuice: 0.2
-  intensity: 0
-  _textComponent: {fileID: 0}
 --- !u!1 &1161021124
 GameObject:
   m_ObjectHideFlags: 0

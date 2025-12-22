@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using TMPEffects.Components;
 
 /// <summary>
 /// Adds a dynamic shadow to the object.
@@ -234,7 +235,34 @@ public class Shadow : MonoBehaviour
         _shadowText.fontSize = targetText.fontSize;
         _shadowText.alignment = targetText.alignment;
         _shadowText.textWrappingMode = targetText.textWrappingMode;
-        _shadowText.maxVisibleCharacters = targetText.maxVisibleCharacters;
+        
+        // Проверяем наличие TMPWriter для корректной синхронизации видимых символов
+        TMPWriter tmpWriter = targetText.GetComponent<TMPWriter>();
+        if (tmpWriter != null)
+        {
+            // TMPWriter управляет видимостью символов через свой механизм
+            // Используем textInfo для получения реального количества видимых символов
+            if (targetText.textInfo != null && targetText.textInfo.characterCount > 0)
+            {
+                int visibleCount = 0;
+                for (int i = 0; i < targetText.textInfo.characterCount; i++)
+                {
+                    if (targetText.textInfo.characterInfo[i].isVisible)
+                        visibleCount++;
+                }
+                _shadowText.maxVisibleCharacters = visibleCount;
+            }
+            else
+            {
+                _shadowText.maxVisibleCharacters = 0;
+            }
+        }
+        else
+        {
+            // Обычная синхронизация для текста без TMPWriter
+            _shadowText.maxVisibleCharacters = targetText.maxVisibleCharacters;
+        }
+        
         _shadowText.characterSpacing = targetText.characterSpacing;
         
         // Rect Size sync is crucial for text alignment
