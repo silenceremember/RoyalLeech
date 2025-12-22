@@ -3,25 +3,26 @@ Shader "Custom/Void"
     Properties
     {
         [Header(Palette)]
-        _Color1 ("Deep (Background)", Color) = (0.1, 0.05, 0.2, 1)
-        _Color2 ("Mid (Flow)", Color) = (0.5, 0.1, 0.7, 1)
-        _Color3 ("High (Energy)", Color) = (0.2, 1.0, 0.8, 1)
+        _Color1 ("Base", Color) = (0.05, 0.02, 0.15, 1)
+        _Color2 ("Mid", Color) = (0.4, 0.15, 0.6, 1)
+        _Color3 ("Accent", Color) = (0.9, 0.4, 0.8, 1)
         
         [Header(Tint Filter)]
         _FilterColor ("Overlay Color (Alpha = Strength)", Color) = (0,0,0,0)
         
         [Header(Pixelation)]
-        _Pixels ("Pixel Density", Float) = 320.0
+        _Pixels ("Pixel Density", Float) = 400.0
         
-        [Header(Motion)]
-        _Speed ("Time Speed", Float) = 0.5
-        _SwirlStrength ("Swirl Power", Float) = 1.0
-        _FlowScale ("Pattern Zoom", Float) = 3.0
+        [Header(Spiral Motion)]
+        _Speed ("Flow Speed", Float) = 0.4
+        _SpiralStrength ("Spiral Twist", Range(0, 5)) = 2.0
+        _FlowIterations ("Flow Complexity", Range(2, 8)) = 5
         
-        [Header(Sharpness and Balance)]
-        // Убрали Range. Теперь вписывай любое число.
-        _Hardness ("Sharpness (Raw Value)", Float) = 20.0
-        _BandOffset ("Color Balance", Range(-1, 1)) = 0.0
+        [Header(Visual)]
+        _FlowScale ("Pattern Scale", Float) = 8.0
+        _Contrast ("Contrast", Range(0.5, 3)) = 1.8
+        _Brightness ("Brightness", Range(0.5, 1.5)) = 1.0
+        _EdgeSharpness ("Edge Sharpness", Range(1, 10)) = 3.0
     }
     SubShader
     {
@@ -54,10 +55,12 @@ Shader "Custom/Void"
                 float4 _FilterColor;
                 float _Pixels;
                 float _Speed;
-                float _SwirlStrength;
+                float _SpiralStrength;
+                float _FlowIterations;
                 float _FlowScale;
-                float _Hardness;
-                float _BandOffset;
+                float _Contrast;
+                float _Brightness;
+                float _EdgeSharpness;
             CBUFFER_END
 
             Varyings vert(Attributes IN)
@@ -77,61 +80,103 @@ Shader "Custom/Void"
 
             half4 frag(Varyings IN) : SV_Target
             {
-                // 1. КОРРЕКЦИЯ
+                float time = _Time.y * _Speed;
+                
+                // === PIXELATION (применяем ПЕРВЫМ к исходным UV) ===
+                float2 uv = IN.uv;
+                uv = floor(uv * _Pixels) / _Pixels;
+                
+                // === SETUP & ASPECT CORRECTION ===
                 float aspect = _ScreenParams.x / _ScreenParams.y;
-                float2 uv = IN.uv - 0.5;
+                uv = uv - 0.5;
                 uv.x *= aspect;
                 
-                float p = _Pixels;
-                uv = floor(uv * p) / p; 
-
-                float time = _Time.y * _Speed;
-                float len = length(uv);
-
-                // 2. ВИХРЬ
-                float twist = log(len * 2.0 + 1.0);
-                float angle = -time * 0.2 + twist * _SwirlStrength * 8.0;
-                uv = mul(rot(angle), uv);
-
-                // 3. СИМУЛЯЦИЯ
-                uv *= _FlowScale;
-                float2 fluidPos = uv;
+                // === POLAR COORDINATES WITH SPIRAL ===
+                float dist = length(uv);
+                float angle = atan2(uv.y, uv.x);
                 
-                for(int i = 1; i < 4; i++) 
+                // КЛЮЧЕВОЙ МОМЕНТ: Закручивание в центр
+                // Чем ближе к центру, тем сильнее закручивание
+                float spiral = _SpiralStrength * (1.0 - dist) * 5.0;
+                angle += spiral + time * 0.15;
+                
+                // Восстанавливаем UV с закруткой
+                uv = float2(cos(angle), sin(angle)) * dist;
+                
+                // === ITERATIVE FLOW SIMULATION ===
+                float2 flowPos = uv * _FlowScale;
+                
+                int iterations = (int)_FlowIterations;
+                for(int i = 0; i < iterations; i++)
                 {
+                    float fi = float(i + 1);
                     float t = time * 0.5;
-                    fluidPos.x += 0.6 / float(i) * sin(float(i) * 3.0 * fluidPos.y + t + 0.3 * float(i)) + 1.0;
-                    fluidPos.y += 0.6 / float(i) * cos(float(i) * 3.0 * fluidPos.x + t + 0.3 * float(i * 10)) - 1.4;
-                    fluidPos = mul(rot(time * 0.1), fluidPos);
+                    
+                    // Сложная органичная симуляция
+                    flowPos += sin(flowPos.yx * 2.0 + fi + t) / fi;
+                    flowPos.x += cos(flowPos.y * 1.3 + t * 0.7) * 0.5 / fi;
+                    flowPos.y += sin(flowPos.x * 1.7 - t * 0.8) * 0.5 / fi;
+                    
+                    // Небольшое вращение для сложности
+                    flowPos = mul(rot(time * 0.08 + fi * 0.15), flowPos);
                 }
-
-                // 4. ЦВЕТ
-                float val = sin(fluidPos.x + fluidPos.y) * 0.5 + 0.5;
                 
-                // РАСЧЕТ РЕЗКОСТИ (Прямая формула)
-                // Hardness 1 = blur 1.0 (Полное мыло)
-                // Hardness 100 = blur 0.01 (Острая грань)
-                // Hardness 1000 = blur 0.001 (Пиксельная бритва)
-                float blur = 1.0 / max(_Hardness, 0.01); 
+                // === CALCULATE PATTERN VALUE ===
+                float pattern = length(flowPos) * 0.5;
+                pattern = frac(pattern); // Повторяющиеся кольца
                 
-                float split1 = 0.33 + _BandOffset * 0.3;
-                float split2 = 0.66 + _BandOffset * 0.3;
-
-                float mask1 = smoothstep(split1 - blur, split1 + blur, val); 
-                float mask2 = smoothstep(split2 - blur, split2 + blur, val); 
-
-                float4 col = lerp(_Color1, _Color2, mask1);
+                // Добавляем волновую составляющую
+                float wave = sin(flowPos.x * 0.5) * cos(flowPos.y * 0.5);
+                pattern = pattern * 0.7 + wave * 0.3;
+                
+                // Нормализуем и применяем контраст
+                pattern = clamp(pattern * 0.5 + 0.5, 0.0, 1.0);
+                pattern = pow(pattern, 1.0 / _Contrast);
+                
+                // === COLOR MAPPING (3 COLORS) ===
+                // Используем острые переходы для контрастности
+                float edge = 1.0 / _EdgeSharpness;
+                
+                float mask1 = smoothstep(0.33 - edge, 0.33 + edge, pattern);
+                float mask2 = smoothstep(0.66 - edge, 0.66 + edge, pattern);
+                
+                float4 col = _Color1;
+                col = lerp(col, _Color2, mask1);
                 col = lerp(col, _Color3, mask2);
-
-                // 5. ФИНАЛИЗАЦИЯ
+                
+                // === ЦЕНТРАЛЬНЫЙ GLOW ===
+                // Добавляем свечение к центру для драматизма
+                float centerGlow = exp(-dist * 3.0) * 0.3;
+                col.rgb += _Color3.rgb * centerGlow;
+                
+                // === RADIAL LIGHTING ===
+                // Мягкая подсветка по краям паттерна
+                float lightEdge = max(0.0, pattern * 5.0 - 4.0);
+                col.rgb += _Color3.rgb * lightEdge * 0.2;
+                
+                // === SOFT VIGNETTE ===
+                float2 vignetteUV = IN.uv - 0.5;
+                float vignette = 1.0 - dot(vignetteUV, vignetteUV) * 1.0;
+                vignette = smoothstep(0.2, 1.0, vignette);
+                col.rgb *= vignette;
+                
+                // === BREATHING ===
+                // Легкая пульсация для живости
+                float breathe = sin(time * 1.2) * 0.5 + 0.5;
+                col.rgb *= (1.0 + breathe * 0.05);
+                
+                // === BRIGHTNESS ===
+                col.rgb *= _Brightness;
+                
+                // === BASE COLOR BOOST ===
+                // Немного добавляем базовый цвет чтобы не было чисто чёрных областей
+                col.rgb = lerp(_Color1.rgb * 0.3, col.rgb, 0.85);
+                
+                // === SUBTLE DITHER ===
                 float dither = frac(sin(dot(IN.uv, float2(12.9898, 78.233))) * 43758.5453);
-                col.rgb += (dither - 0.5) * 0.03;
+                col.rgb += (dither - 0.5) * 0.02;
                 
-                float2 dist = IN.uv - 0.5;
-                float vignette = 1.0 - dot(dist, dist) * 1.5;
-                col.rgb *= smoothstep(0.0, 1.0, vignette);
-                
-                // 6. TINT FILTER
+                // === TINT FILTER ===
                 col.rgb = lerp(col.rgb, _FilterColor.rgb, _FilterColor.a);
 
                 return col;
