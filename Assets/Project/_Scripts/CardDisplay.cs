@@ -1,10 +1,11 @@
-﻿// CardDisplay.cs
+// CardDisplay.cs
 
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using DG.Tweening;
 using UnityEngine.InputSystem;
+using TMPEffects.Components.Writer;
 
 public class CardDisplay : MonoBehaviour
 {
@@ -28,8 +29,8 @@ public class CardDisplay : MonoBehaviour
     public float fallDuration = 0.6f;     // Чуть ускорил падение для динамики
     public float interactionDelay = 0.5f; 
 
-    [Header("Typewriter Effect")]
-    public float typingSpeed = 0.02f; // Скорость появления одной буквы (сек)
+    [Header("TMPEffects Components")]
+    private TMPWriter tmpWriter; // Будет автоматически найден в Awake
 
     // Насколько сильно карта реагирует при локе (настройка)
     [Header("Настройки Лока")]
@@ -76,14 +77,18 @@ public class CardDisplay : MonoBehaviour
     private float _lastMouseX;
     private float _mouseVelocityX;
 
-    // Твин для текста, чтобы можно было остановить
-    private Tween _typewriterTween;
-
     void Awake()
     {
         _rectTransform = GetComponent<RectTransform>();
         if (actionText != null) _textRectTransform = actionText.GetComponent<RectTransform>();
         if (canvasGroup == null) canvasGroup = GetComponent<CanvasGroup>();
+        
+        // Получаем TMPWriter компонент
+        tmpWriter = questionText.GetComponent<TMPWriter>();
+        if (tmpWriter == null)
+        {
+            Debug.LogWarning("TMPWriter component not found on questionText! Please add it.");
+        }
     }
 
     public void Setup(CardData data, bool isFront)
@@ -92,9 +97,15 @@ public class CardDisplay : MonoBehaviour
         characterImage.sprite = data.characterSprite;
         nameText.text = data.characterName;
         
-        // 1. Устанавливаем текст, но скрываем все буквы
-        questionText.text = data.dialogueText;
-        questionText.maxVisibleCharacters = 0; 
+        // 1. Устанавливаем текст через TMPWriter
+        if (tmpWriter != null)
+        {
+            tmpWriter.SetText(data.dialogueText);
+        }
+        else
+        {
+            questionText.text = data.dialogueText;
+        } 
 
         if (actionText) actionText.gameObject.SetActive(false);
         
@@ -137,9 +148,7 @@ public class CardDisplay : MonoBehaviour
         // Карта будет двигаться, но с маленькой амплитудой
         _inputScale = lockedInputScale;
         
-        DOTween.Kill(this); 
-        // Убиваем старый твин текста, если он вдруг еще идет
-        if (_typewriterTween != null) _typewriterTween.Kill();
+        DOTween.Kill(this);
 
         // Анимация падения
         Sequence dropSeq = DOTween.Sequence();
@@ -170,17 +179,13 @@ public class CardDisplay : MonoBehaviour
 
     void StartTypewriter()
     {
-        int totalChars = questionText.text.Length;
-        questionText.maxVisibleCharacters = 0;
-
-        // Рассчитываем длительность: длина текста * скорость одной буквы
-        float duration = totalChars * typingSpeed;
-
-        // Анимируем число видимых символов от 0 до totalChars
-        _typewriterTween = DOTween.To(x => questionText.maxVisibleCharacters = (int)x, 0, totalChars, duration)
-            .SetEase(Ease.Linear)
-            .SetTarget(this);
-            // .OnUpdate(() => { PlayTypeSound(); }) // Сюда можно добавить звук "тук-тук"
+        if (tmpWriter != null)
+        {
+            // TMPWriter автоматически анимирует появление текста
+            tmpWriter.StartWriter();
+            // Можно подписаться на события:
+            // tmpWriter.OnCharacterShown.AddListener((CharData data) => PlayTypeSound());
+        }
     }
 
     void Update()
