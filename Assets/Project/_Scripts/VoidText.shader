@@ -12,13 +12,14 @@ Shader "UI/VoidText"
         _DistortStrength ("Boil Strength", Range(0, 0.05)) = 0.005
         _Speed ("Boil Speed", Float) = 5.0
 
-        // Стандартные параметры UI
+        // Standard UI Stencil Properties
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
         _StencilOp ("Stencil Operation", Float) = 0
         _StencilWriteMask ("Stencil Write Mask", Float) = 255
         _StencilReadMask ("Stencil Read Mask", Float) = 255
         _ColorMask ("Color Mask", Float) = 15
+     
         [Toggle(UNITY_UI_ALPHACLIP)] _UseUIAlphaClip ("Use Alpha Clip", Float) = 0
     }
 
@@ -26,7 +27,14 @@ Shader "UI/VoidText"
     {
         Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" "PreviewType"="Plane" }
         
-        Stencil { Ref [_Stencil] Comp [_StencilComp] Pass [_StencilOp] ReadMask [_StencilReadMask] WriteMask [_StencilWriteMask] }
+        Stencil 
+        { 
+            Ref [_Stencil] 
+            Comp [_StencilComp] 
+            Pass [_StencilOp] 
+            ReadMask [_StencilReadMask] 
+            WriteMask [_StencilWriteMask] 
+        }
         
         Cull Off
         Lighting Off
@@ -41,6 +49,9 @@ Shader "UI/VoidText"
             #pragma fragment frag
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+
+            #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
+            #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
 
             struct appdata_t
             {
@@ -59,65 +70,47 @@ Shader "UI/VoidText"
 
             sampler2D _MainTex;
             float4 _ClipRect;
-            
             float _Pixels;
-            // Shadow properties removed
             float _DistortStrength;
             float _Speed;
 
             v2f vert(appdata_t v)
             {
                 v2f OUT;
-                OUT.worldPosition = v.vertex;
-                OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
-                OUT.texcoord = v.texcoord;
                 
-                // Передаем цвет вершин (Градиент из TMP) без изменений
+                OUT.worldPosition = mul(unity_ObjectToWorld, v.vertex);
+                
+                OUT.vertex = UnityObjectToClipPos(v.vertex);
+                OUT.texcoord = v.texcoord;
                 OUT.color = v.color;
+                
                 return OUT;
-            }
-
-            // Функция SDF
-            float GetSDF(float2 uv)
-            {
-                return tex2D(_MainTex, uv).a;
             }
 
             fixed4 frag(v2f IN) : SV_Target
             {
-                float2 uv = IN.texcoord;
-                
-                // 1. Boil Effect (Искажение)
-                float2 distort = float2(0,0);
                 float time = _Time.y * _Speed;
-                distort.x = sin(uv.y * 15.0 + time) * _DistortStrength;
-                distort.y = cos(uv.x * 12.0 + time * 1.5) * _DistortStrength;
                 
-                float2 distortedUV = uv + distort;
+                float2 distort;
+                distort.x = sin(IN.texcoord.y * 15.0 + time);
+                distort.y = cos(IN.texcoord.x * 12.0 + time * 1.5);
+                
+                float2 distortedUV = IN.texcoord + (distort * _DistortStrength);
 
-                // 2. Пикселизация
                 float2 pixelUV = floor(distortedUV * _Pixels) / _Pixels;
 
-                // 3. Чтение (Shadow Removed)
-                float d_text = GetSDF(pixelUV);
-                float threshold = 0.5;
-
-                // 4. Маски
-                float isFace = step(threshold, d_text);
-
-                // 5. Сборка Цвета
-                float4 finalColor = float4(0,0,0,0);
-
-                if (isFace > 0.5) 
-                {
-                    // Используем ТОЛЬКО цвет из TMP (Градиент)
-                    finalColor = IN.color;
-                }
+                float d_text = tex2D(_MainTex, pixelUV).a;
                 
-                if (finalColor.a < 0.01) discard;
+                float mask = step(0.5, d_text); 
+                
+                float4 finalColor = IN.color * mask;
 
+                #ifdef UNITY_UI_CLIP_RECT
                 finalColor.a *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
-                
+                #endif
+
+                clip(finalColor.a - 0.001);
+
                 return finalColor;
             }
             ENDCG
