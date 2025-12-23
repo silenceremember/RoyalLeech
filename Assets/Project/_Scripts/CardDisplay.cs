@@ -82,6 +82,7 @@ public class CardDisplay : MonoBehaviour
     private float _currentScale = 1.0f;
     private float _lastMouseX;
     private float _mouseVelocityX;
+    private bool _wasHeld = false;
 
     // Idle effect vars
     private float _idleTime = 0f;
@@ -299,16 +300,28 @@ public class CardDisplay : MonoBehaviour
 
         // 6. SCALE "GRAB" EFFECT
         // Если держим карту (и она не залочена), она чуть сжимается
-        float targetS = (_isInteractable && !_safetyLock && isHeld) ? grabScale : 1.0f;
+        bool isGrabbed = _isInteractable && !_safetyLock && isHeld;
+
+        // Если только что схватили - убиваем все твины (особенно PunchScale от падения)
+        // и синхронизируем скейл, чтобы не было скачка
+        if (isGrabbed && !_wasHeld)
+        {
+            DOTween.Kill(transform); // Убиваем PunchScale и всё что висит на трансформе
+            _currentScale = _rectTransform.localScale.x; // Синхронизируем, чтобы начать лерп с ТЕКУЩЕГО размера
+        }
+
+        float targetS = isGrabbed ? grabScale : 1.0f;
         _currentScale = Mathf.Lerp(_currentScale, targetS, Time.deltaTime * grabScaleSpeed);
         
-        // Применяем масштаб, сохраняя Punch эффекты (они обычно через локальный скейл работают, но мы управляем основным)
-        // Чтобы совместить DoTween PunchScale и ручной Lerp, лучше применять Lerp к "Base" контейнеру, но у нас сейчас один трансформ.
-        // Простой вариант: если твин не идет на скейле - управляем мы.
-        if (!DOTween.IsTweening(transform)) 
+        // Применяем масштаб, если мы контролируем его (т.е. если мы держим карту ИЛИ если нет активных твинов)
+        // Если идет твин падения (Punch), и мы НЕ держим карту - пусть играет твин.
+        // Но если мы схватили - мы убили твин выше, и теперь полностью управляем скейлом.
+        if (isGrabbed || !DOTween.IsTweening(transform)) 
         {
             _rectTransform.localScale = Vector3.one * _currentScale;
         }
+
+        _wasHeld = isGrabbed;
 
         // 7. ВИЗУАЛ
         UpdateVisuals(targetX);
