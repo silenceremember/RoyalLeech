@@ -58,7 +58,7 @@ Material:
     - _OutlineWidth: 0.45
     - _PixelDensity: 299
     - _PixelSize: 300
-    - _Pixels: 1000
+    - _Pixels: 600
     - _ShadowDilate: 0.1
     - _ShadowPixelShiftX: 3
     - _ShadowPixelShiftY: 1
