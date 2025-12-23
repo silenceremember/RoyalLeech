@@ -98,6 +98,7 @@ public class CardDisplay : MonoBehaviour
     // Typewriter vars
     private string _currentChoiceText = "";
     private float _currentVisibleCharsFloat = 0f;
+    private bool _wasMovingBack = false;
 
     void Awake()
     {
@@ -486,19 +487,44 @@ public class CardDisplay : MonoBehaviour
             targetIntChars = Mathf.Clamp(targetIntChars, 0, totalChars);
         }
         
-        // Текущее количество символов (целое)
-        int currentIntChars = Mathf.FloorToInt(_currentVisibleCharsFloat);
-        
-        // СТРОГОЕ ОГРАНИЧЕНИЕ: максимум +1 символ за кадр при движении вперёд
-        if (targetIntChars > currentIntChars)
+        // ДИНАМИЧЕСКАЯ ИНТЕРПОЛЯЦИЯ (ВПЕРЁД/НАЗАД)
+        if (targetIntChars > _currentVisibleCharsFloat)
         {
-            // Движение вперёд: добавляем ровно +1 символ
-            _currentVisibleCharsFloat = currentIntChars + 1;
+            // ВПЕРЁД
+            _wasMovingBack = false;
+            
+            _currentVisibleCharsFloat = Mathf.MoveTowards(
+                _currentVisibleCharsFloat, 
+                targetIntChars, 
+                Time.deltaTime * typewriterSmoothSpeed
+            );
         }
-        else if (targetIntChars < currentIntChars)
+        else if (targetIntChars < _currentVisibleCharsFloat)
         {
-            // Движение назад: мгновенно уменьшаем до target
-            _currentVisibleCharsFloat = targetIntChars;
+            // НАЗАД
+            // "Грамотная отмена" - срабатывает только в момент СМЕНЫ направления на "назад".
+            // Если мы только что начали идти назад, сбрасываем "накопленный хвост" (текущую анимацию появления).
+            if (!_wasMovingBack)
+            {
+                if (_currentVisibleCharsFloat % 1f > 0.001f)
+                {
+                     _currentVisibleCharsFloat = Mathf.Floor(_currentVisibleCharsFloat);
+                }
+            }
+            
+            _wasMovingBack = true;
+
+            // Далее плавно убываем с нормальной скоростью, чтобы сохранять ритм исчезновения
+            _currentVisibleCharsFloat = Mathf.MoveTowards(
+                _currentVisibleCharsFloat, 
+                targetIntChars, 
+                Time.deltaTime * typewriterSmoothSpeed
+            );
+        }
+        else
+        {
+            // Стоим на месте
+             _wasMovingBack = false;
         }
         // Если targetIntChars == currentIntChars - остаёмся на месте
         
