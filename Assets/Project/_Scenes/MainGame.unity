@@ -1454,6 +1454,9 @@ MonoBehaviour:
   shakeAngle: 3
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   snapColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  textShowStartDistance: 0
+  textShowFullDistance: 300
+  typewriterSmoothSpeed: 15
   enableIdleRotation: 1
   idleRotationAmount: 1
   idleRotationSpeed: 1.5
