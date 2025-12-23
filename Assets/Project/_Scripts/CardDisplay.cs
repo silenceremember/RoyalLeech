@@ -79,7 +79,7 @@ public class CardDisplay : MonoBehaviour
     private float _inputScale = 1.0f;
 
     // Juice vars
-    private float _currentScale = 1.0f;
+    private Vector3 _currentScaleVec = Vector3.one;
     private float _lastMouseX;
     private float _mouseVelocityX;
     private bool _wasHeld = false;
@@ -125,7 +125,7 @@ public class CardDisplay : MonoBehaviour
         _safetyLock = false;
         _isUnlockAnimating = false; // Важно сбросить анимацию
         _inputScale = 1.0f; // По умолчанию полный контроль
-        _currentScale = 1.0f;
+        _currentScaleVec = Vector3.one;
         _idleTime = Random.Range(0f, 100f); // Случайное начальное смещение для разнообразия
         
         if (isFront)
@@ -307,40 +307,27 @@ public class CardDisplay : MonoBehaviour
         if (isGrabbed && !_wasHeld)
         {
             DOTween.Kill(transform); // Убиваем PunchScale и всё что висит на трансформе
-            _currentScale = _rectTransform.localScale.x; // Синхронизируем, чтобы начать лерп с ТЕКУЩЕГО размера
+            _currentScaleVec = _rectTransform.localScale; // Синхронизируем с ТЕКУЩИМ (возможно сплюснутым) вектором
         }
 
         float targetS = isGrabbed ? grabScale : 1.0f;
-        _currentScale = Mathf.Lerp(_currentScale, targetS, Time.deltaTime * grabScaleSpeed);
+        Vector3 targetVec = Vector3.one * targetS;
+        
+        _currentScaleVec = Vector3.Lerp(_currentScaleVec, targetVec, Time.deltaTime * grabScaleSpeed);
         
         // Применяем масштаб, если мы контролируем его (т.е. если мы держим карту ИЛИ если нет активных твинов)
         // Если идет твин падения (Punch), и мы НЕ держим карту - пусть играет твин.
         // Но если мы схватили - мы убили твин выше, и теперь полностью управляем скейлом.
         if (isGrabbed || !DOTween.IsTweening(transform)) 
         {
-            _rectTransform.localScale = Vector3.one * _currentScale;
+            _rectTransform.localScale = _currentScaleVec;
         }
 
         _wasHeld = isGrabbed;
 
         // 7. ВИЗУАЛ
         UpdateVisuals(targetX);
-        
-        if (_isInteractable && !_safetyLock && isClickFrame)
-        {
-            // HandleInput(targetX); // Этот вызов был раньше по клику? 
-            // Стоп, HandleInput вызывался на клик, но выбор делается обычно отпусканием или слайдом.
-            // В оригинале было "HandleInput" внутри "IsClickFrame". Это странно для свайп механики. 
-            // Обычно выбор делается когда отпускаешь, если утянул далеко.
-            // Посмотрим в оригинальный код. Там MakeChoice вызывается если > threshold.
-            // "if (Mouse.current.leftButton.wasPressedThisFrame)" - это странно для свайпа "Tinder style".
-            // Обычно это "wasReleasedThisFrame" или просто проверка позиции.
-            // Я оставлю как было, но добавлю логику "отпускания" для свайпа, если юзер просил "Tinder" механику.
-            // Но в оригинале код: if (diff > choiceThreshold) MakeChoice. И это ВНУТРИ wasPressedThisFrame. 
-            // Это значит выбор делался В МОМЕНТ КЛИКА, если мышка УЖЕ была далеко? 
-            // Или это баг оригинала? 
-            // Скорее всего предполагалось "wasReleased". Я поправлю на Released для лучшего флоу.
-        }
+
         
         // Проверка свайпа должна быть постоянной или на отпускании. 
         // Если это "Tinder", то карта летает за мышкой, и если отпускаешь в зоне - выбор.
@@ -403,9 +390,9 @@ public class CardDisplay : MonoBehaviour
             .SetEase(Ease.OutBack)); // Легкая пружинка в конце
 
         // --- ФИЗИКА (РАЗГОН) ---
-        // Включаем следование за мышью параллельно с тряской
+        // Включаем следование за мышью сразу, но плавно разгоняем чувствительность
         DOTween.To(() => _inputScale, x => _inputScale = x, 1.0f, 0.3f)
-            .SetEase(Ease.OutCubic) 
+            .SetEase(Ease.OutCubic) // Быстрый старт, плавный финиш - ощущается как "сразу работает"
             .SetId("inputScale")
             .SetTarget(this);
     }
@@ -488,6 +475,7 @@ public class CardDisplay : MonoBehaviour
         float anticipationX = isRight ? -50f : 50f; 
         seq.Append(_rectTransform.DOAnchorPosX(_rectTransform.anchoredPosition.x + anticipationX, 0.1f).SetEase(Ease.OutQuad));
         seq.Join(_rectTransform.DORotate(new Vector3(0, 0, isRight ? 5f : -5f), 0.1f));
+        seq.Join(_rectTransform.DOScale(1f, 0.1f)); // Гарантируем возврат к нормальному размеру, если карту держали
 
         // 2. Вылет с ускорением
         seq.Append(_rectTransform.DOAnchorPosX(endX, 0.5f).SetEase(Ease.InBack)); // InBack сам дает замах, но мы усилили его ручным
