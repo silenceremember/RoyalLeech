@@ -50,10 +50,6 @@ public class TextAnimatorPreset : ScriptableObject
     [Range(0f, 0.2f)]
     public float appearStagger = 0.03f;
     
-    [Tooltip("Длительность исчезновения одной буквы")]
-    [Range(0.05f, 0.5f)]
-    public float disappearDuration = 0.15f;
-    
     [Tooltip("Скорость интерполяции эффектов")]
     [Range(5f, 30f)]
     public float effectSmoothSpeed = 15f;
@@ -78,9 +74,26 @@ public class TextAnimatorPreset : ScriptableObject
     [Tooltip("Эффекты при выборе (progress >= 1)")]
     public StateEffects selectedEffects = new StateEffects();
     
-    [Header("=== DISAPPEAR EFFECTS ===")]
-    [Tooltip("Эффекты при исчезновении буквы")]
-    public StateEffects disappearEffects = new StateEffects();
+    [Header("=== DISAPPEAR NORMAL ===")]
+    [Tooltip("Обычное пропадание при свайпе назад")]
+    public StateEffects disappearNormalEffects = new StateEffects();
+    [Tooltip("Длительность обычного пропадания")]
+    [Range(0.05f, 0.5f)]
+    public float disappearNormalDuration = 0.15f;
+    
+    [Header("=== DISAPPEAR RETURN ===")]
+    [Tooltip("Быстрое пропадание при возврате к центру")]
+    public StateEffects disappearReturnEffects = new StateEffects();
+    [Tooltip("Длительность пропадания при возврате")]
+    [Range(0.02f, 0.3f)]
+    public float disappearReturnDuration = 0.08f;
+    
+    [Header("=== DISAPPEAR SELECTED ===")]
+    [Tooltip("Пропадание после выбора")]
+    public StateEffects disappearSelectedEffects = new StateEffects();
+    [Tooltip("Длительность пропадания после выбора")]
+    [Range(0.05f, 0.5f)]
+    public float disappearSelectedDuration = 0.2f;
     
     /// <summary>
     /// Вычислить эффекты для появления.
@@ -122,10 +135,34 @@ public class TextAnimatorPreset : ScriptableObject
     }
     
     /// <summary>
-    /// Вычислить эффекты для исчезновения.
+    /// Вычислить эффекты для исчезновения по типу.
     /// </summary>
-    public EffectResult CalculateDisappear(float time, int charIndex, float stateProgress)
+    public EffectResult CalculateDisappear(float time, int charIndex, float stateProgress, DisappearMode mode)
     {
-        return disappearEffects.Calculate(time, charIndex, stateProgress, 1f);
+        switch (mode)
+        {
+            case DisappearMode.Return:
+                return disappearReturnEffects.Calculate(time, charIndex, stateProgress, 1f);
+            case DisappearMode.Selected:
+                return disappearSelectedEffects.Calculate(time, charIndex, stateProgress, 1f);
+            default:
+                return disappearNormalEffects.Calculate(time, charIndex, stateProgress, 1f);
+        }
+    }
+    
+    /// <summary>
+    /// Получить длительность пропадания по типу.
+    /// </summary>
+    public float GetDisappearDuration(DisappearMode mode)
+    {
+        switch (mode)
+        {
+            case DisappearMode.Return:
+                return disappearReturnDuration;
+            case DisappearMode.Selected:
+                return disappearSelectedDuration;
+            default:
+                return disappearNormalDuration;
+        }
     }
 }

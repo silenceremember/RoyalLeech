@@ -17,7 +17,19 @@ public enum LetterState
     Idle,
     Active,
     Selected,
-    Disappearing
+    DisappearingNormal,   // Обычное пропадание при свайпе назад
+    DisappearingReturn,   // Быстрое пропадание при возврате к центру
+    DisappearingSelected  // Пропадание после выбора
+}
+
+/// <summary>
+/// Режим пропадания (для внешнего вызова).
+/// </summary>
+public enum DisappearMode
+{
+    Normal,   // При свайпе назад
+    Return,   // При возврате к центру
+    Selected  // После выбора
 }
 
 /// <summary>
@@ -109,9 +121,11 @@ public class TextAnimator : MonoBehaviour
     private float InterpolationSpeed => preset != null ? preset.interpolationSpeed : 15f;
     private float AppearDuration => preset != null ? preset.appearDuration : 0.25f;
     private float AppearStagger => preset != null ? preset.appearStagger : 0.03f;
-    private float DisappearDuration => preset != null ? preset.disappearDuration : 0.15f;
     private float EffectSmoothSpeed => preset != null ? preset.effectSmoothSpeed : 15f;
     private float StateTransitionDuration => preset != null ? preset.stateTransitionDuration : 0.15f;
+    
+    // Current disappear mode for active disappearing
+    private DisappearMode _currentDisappearMode = DisappearMode.Normal;
 
     void Awake()
     {
@@ -287,6 +301,73 @@ public class TextAnimator : MonoBehaviour
             StartWriter();
         }
     }
+    
+    /// <summary>
+    /// Запустить пропадание всех видимых букв с указанным режимом.
+    /// </summary>
+    public void TriggerDisappear(DisappearMode mode)
+    {
+        if (_letterData == null) return;
+        
+        _currentDisappearMode = mode;
+        LetterState targetState = GetDisappearStateFromMode(mode);
+        
+        for (int i = 0; i < _letterData.Length; i++)
+        {
+            if (_letterData[i].state != LetterState.Hidden && !IsDisappearingState(_letterData[i].state))
+            {
+                _letterData[i].state = targetState;
+                _letterData[i].stateTime = 0f;
+            }
+        }
+        
+        // Сбрасываем target чтобы новые буквы не появлялись
+        _targetCharCount = 0;
+    }
+    
+    /// <summary>
+    /// Быстрое пропадание при возврате к центру.
+    /// </summary>
+    public void TriggerReturnToCenter()
+    {
+        TriggerDisappear(DisappearMode.Return);
+    }
+    
+    /// <summary>
+    /// Пропадание после выбора.
+    /// </summary>
+    public void TriggerSelected()
+    {
+        TriggerDisappear(DisappearMode.Selected);
+    }
+    
+    // Helper methods
+    private static bool IsDisappearingState(LetterState state)
+    {
+        return state == LetterState.DisappearingNormal || 
+               state == LetterState.DisappearingReturn || 
+               state == LetterState.DisappearingSelected;
+    }
+    
+    private static LetterState GetDisappearStateFromMode(DisappearMode mode)
+    {
+        switch (mode)
+        {
+            case DisappearMode.Return: return LetterState.DisappearingReturn;
+            case DisappearMode.Selected: return LetterState.DisappearingSelected;
+            default: return LetterState.DisappearingNormal;
+        }
+    }
+    
+    private static DisappearMode GetDisappearModeFromState(LetterState state)
+    {
+        switch (state)
+        {
+            case LetterState.DisappearingReturn: return DisappearMode.Return;
+            case LetterState.DisappearingSelected: return DisappearMode.Selected;
+            default: return DisappearMode.Normal;
+        }
+    }
 
     #endregion
 
@@ -382,9 +463,11 @@ public class TextAnimator : MonoBehaviour
         
         for (int i = 0; i < _letterData.Length; i++)
         {
+            bool isDisappearing = IsDisappearingState(_letterData[i].state);
+            
             if (i < visibleChars)
             {
-                if (_letterData[i].state == LetterState.Hidden || _letterData[i].state == LetterState.Disappearing)
+                if (_letterData[i].state == LetterState.Hidden || isDisappearing)
                 {
                     _letterData[i].state = LetterState.Appearing;
                     _letterData[i].stateTime = 0f;
@@ -397,9 +480,10 @@ public class TextAnimator : MonoBehaviour
             }
             else
             {
-                if (_letterData[i].state != LetterState.Hidden && _letterData[i].state != LetterState.Disappearing)
+                if (_letterData[i].state != LetterState.Hidden && !isDisappearing)
                 {
-                    _letterData[i].state = LetterState.Disappearing;
+                    // При обычном свайпе используем Normal режим
+                    _letterData[i].state = LetterState.DisappearingNormal;
                     _letterData[i].stateTime = 0f;
                 }
             }
@@ -482,9 +566,13 @@ public class TextAnimator : MonoBehaviour
                     result = preset.CalculateIdle(_animationTime, i, progress);
                     break;
                     
-                case LetterState.Disappearing:
-                    float disappearT = Mathf.Clamp01(letter.stateTime / DisappearDuration);
-                    result = preset.CalculateDisappear(_animationTime, i, disappearT);
+                case LetterState.DisappearingNormal:
+                case LetterState.DisappearingReturn:
+                case LetterState.DisappearingSelected:
+                    DisappearMode mode = GetDisappearModeFromState(letter.state);
+                    float disappearDuration = preset.GetDisappearDuration(mode);
+                    float disappearT = Mathf.Clamp01(letter.stateTime / disappearDuration);
+                    result = preset.CalculateDisappear(_animationTime, i, disappearT, mode);
                     
                     if (disappearT >= 1f)
                     {
@@ -496,6 +584,8 @@ public class TextAnimator : MonoBehaviour
             // Проверяем смену состояния (кроме переходов между Idle/Active/Selected - они плавные через progress)
             bool isIdleGroup = letter.state == LetterState.Idle || letter.state == LetterState.Active || letter.state == LetterState.Selected;
             bool newIsIdleGroup = newState == LetterState.Idle || newState == LetterState.Active || newState == LetterState.Selected;
+            bool isDisappearing = IsDisappearingState(letter.state);
+            bool newIsDisappearing = IsDisappearingState(newState);
             
             if (newState != letter.state && !(isIdleGroup && newIsIdleGroup))
             {

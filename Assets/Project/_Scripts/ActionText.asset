@@ -18,10 +18,10 @@ MonoBehaviour:
   delay: 0
   startOnEnable: 0
   interpolationSpeed: 15
-  appearDuration: 0.25
+  appearDuration: 0.3
   appearStagger: 0.03
-  disappearDuration: 0.15
-  effectSmoothSpeed: 15
+  effectSmoothSpeed: 12
+  stateTransitionDuration: 0.12
   appearEffects:
     effects:
     - type: 3
@@ -30,7 +30,7 @@ MonoBehaviour:
       waveSpeedMax: 2.5
       pulseAmplitude: 0.1
       pulseSpeed: 6
-      bounceOvershoot: 1.2
+      bounceOvershoot: 1.35
       fadeFrom: 0
       fadeTo: 1
       slideDirection: 0
@@ -60,15 +60,15 @@ MonoBehaviour:
       fadeFrom: 0
       fadeTo: 1
       slideDirection: 0
-      slideDistance: 20
+      slideDistance: 25
       jitterIntensity: 2
       jitterSpeed: 30
   idleEffects:
     effects:
     - type: 1
-      waveAmplitude: 3
-      waveSpeedMin: 1
-      waveSpeedMax: 2.5
+      waveAmplitude: 2.5
+      waveSpeedMin: 0.8
+      waveSpeedMax: 1.8
       pulseAmplitude: 0.1
       pulseSpeed: 6
       bounceOvershoot: 1.2
@@ -81,24 +81,9 @@ MonoBehaviour:
   activeEffects:
     effects:
     - type: 1
-      waveAmplitude: 5
-      waveSpeedMin: 1.5
-      waveSpeedMax: 3
-      pulseAmplitude: 0.1
-      pulseSpeed: 6
-      bounceOvershoot: 1.2
-      fadeFrom: 0
-      fadeTo: 1
-      slideDirection: 0
-      slideDistance: 20
-      jitterIntensity: 2
-      jitterSpeed: 30
-  selectedEffects:
-    effects:
-    - type: 1
       waveAmplitude: 6
       waveSpeedMin: 1.5
-      waveSpeedMax: 3
+      waveSpeedMax: 3.5
       pulseAmplitude: 0.1
       pulseSpeed: 6
       bounceOvershoot: 1.2
@@ -112,6 +97,21 @@ MonoBehaviour:
       waveAmplitude: 4
       waveSpeedMin: 1
       waveSpeedMax: 2.5
+      pulseAmplitude: 0.08
+      pulseSpeed: 8
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
+  selectedEffects:
+    effects:
+    - type: 1
+      waveAmplitude: 8
+      waveSpeedMin: 2
+      waveSpeedMax: 4
       pulseAmplitude: 0.1
       pulseSpeed: 6
       bounceOvershoot: 1.2
@@ -121,7 +121,20 @@ MonoBehaviour:
       slideDistance: 20
       jitterIntensity: 2
       jitterSpeed: 30
-  disappearEffects:
+    - type: 2
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.15
+      pulseSpeed: 10
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
+  disappearNormalEffects:
     effects:
     - type: 4
       waveAmplitude: 4
@@ -146,6 +159,78 @@ MonoBehaviour:
       fadeFrom: 1
       fadeTo: 0
       slideDirection: 1
-      slideDistance: 15
+      slideDistance: 12
       jitterIntensity: 2
       jitterSpeed: 30
+  disappearNormalDuration: 0.15
+  disappearReturnEffects:
+    effects:
+    - type: 4
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 1
+      fadeTo: 0
+      slideDirection: 1
+      slideDistance: 8
+      jitterIntensity: 2
+      jitterSpeed: 30
+    - type: 5
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 1
+      fadeTo: 0
+      slideDirection: 1
+      slideDistance: 30
+      jitterIntensity: 2
+      jitterSpeed: 30
+  disappearReturnDuration: 0.06
+  disappearSelectedEffects:
+    effects:
+    - type: 3
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 0.8
+      fadeFrom: 1
+      fadeTo: 0
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
+    - type: 4
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 1
+      fadeTo: 0
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
+    - type: 5
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 1
+      fadeTo: 0
+      slideDirection: 0
+      slideDistance: 35
+      jitterIntensity: 2
+      jitterSpeed: 30
+  disappearSelectedDuration: 0.25
