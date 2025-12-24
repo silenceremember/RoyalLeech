@@ -191,7 +191,7 @@ MonoBehaviour:
       slideDistance: 30
       jitterIntensity: 2
       jitterSpeed: 30
-  disappearReturnDuration: 0.06
+  disappearReturnDuration: 0.15
   disappearSelectedEffects:
     effects:
     - type: 3

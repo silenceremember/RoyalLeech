@@ -82,18 +82,18 @@ public class TextAnimatorPreset : ScriptableObject
     public float disappearNormalDuration = 0.15f;
     
     [Header("=== DISAPPEAR RETURN ===")]
-    [Tooltip("Быстрое пропадание при возврате к центру")]
+    [Tooltip("Быстрое пропадание при возврате к центру или смене направления")]
     public StateEffects disappearReturnEffects = new StateEffects();
     [Tooltip("Длительность пропадания при возврате")]
-    [Range(0.02f, 0.3f)]
-    public float disappearReturnDuration = 0.08f;
+    [Range(0.05f, 0.5f)]
+    public float disappearReturnDuration = 0.15f;
     
     [Header("=== DISAPPEAR SELECTED ===")]
     [Tooltip("Пропадание после выбора")]
     public StateEffects disappearSelectedEffects = new StateEffects();
     [Tooltip("Длительность пропадания после выбора")]
     [Range(0.05f, 0.5f)]
-    public float disappearSelectedDuration = 0.2f;
+    public float disappearSelectedDuration = 0.25f;
     
     /// <summary>
     /// Вычислить эффекты для появления.
@@ -136,17 +136,24 @@ public class TextAnimatorPreset : ScriptableObject
     
     /// <summary>
     /// Вычислить эффекты для исчезновения по типу.
+    /// Для Return/Selected все буквы анимируются одновременно (charIndex = 0).
     /// </summary>
     public EffectResult CalculateDisappear(float time, int charIndex, float stateProgress, DisappearMode mode)
     {
+        // Для Return и Selected используем charIndex=0 чтобы все буквы
+        // анимировались одинаково (без побуквенного stagger)
+        int effectiveCharIndex = (mode == DisappearMode.Return || mode == DisappearMode.Selected) 
+            ? 0 
+            : charIndex;
+        
         switch (mode)
         {
             case DisappearMode.Return:
-                return disappearReturnEffects.Calculate(time, charIndex, stateProgress, 1f);
+                return disappearReturnEffects.Calculate(time, effectiveCharIndex, stateProgress, 1f);
             case DisappearMode.Selected:
-                return disappearSelectedEffects.Calculate(time, charIndex, stateProgress, 1f);
+                return disappearSelectedEffects.Calculate(time, effectiveCharIndex, stateProgress, 1f);
             default:
-                return disappearNormalEffects.Calculate(time, charIndex, stateProgress, 1f);
+                return disappearNormalEffects.Calculate(time, effectiveCharIndex, stateProgress, 1f);
         }
     }
     

@@ -5,7 +5,7 @@ using UnityEngine.UI;
 using TMPro;
 using DG.Tweening;
 using UnityEngine.InputSystem;
-// TMPEffects заменен на RLTextAnimator
+using System.Collections;
 
 public class CardDisplay : MonoBehaviour
 {
@@ -95,6 +95,11 @@ public class CardDisplay : MonoBehaviour
 
     // Idle effect vars
     private float _idleTime = 0f;
+    
+    // Disappear animation tracking
+    private Coroutine _disappearCoroutine = null;
+    private string _pendingText = null;
+    private bool _isWaitingForDisappear = false;
 
     void Awake()
     {
@@ -432,35 +437,17 @@ public class CardDisplay : MonoBehaviour
         // Скрываем если падает ИЛИ если ЗАБЛОКИРОВАНО (но не во время анимации разблокировки!)
         if (_currentVerticalOffset > 150f || (_safetyLock && !_isUnlockAnimating)) 
         {
-            if (actionAnimator != null)
-            {
-                actionAnimator.SetText("");
-                actionAnimator.ResetProgress();
-            }
-            else if (actionText)
-            {
-                actionText.text = "";
-                actionText.maxVisibleCharacters = 0;
-            }
+            TriggerReturnToCenterWithDelay();
             GameManager.Instance.ResetHighlights();
             return;
         }
 
         float absDiff = Mathf.Abs(diff);
         
-        // Если мы близко к центру, сбрасываем всё
+        // Если мы близко к центру, сбрасываем всё с анимацией
         if (absDiff < 5f)
         {
-            if (actionAnimator != null)
-            {
-                actionAnimator.SetText("");
-                actionAnimator.ResetProgress();
-            }
-            else if (actionText)
-            {
-                actionText.text = "";
-                actionText.maxVisibleCharacters = 0;
-            }
+            TriggerReturnToCenterWithDelay();
             GameManager.Instance.ResetHighlights();
             return;
         }
@@ -469,13 +456,21 @@ public class CardDisplay : MonoBehaviour
         bool isRight = diff > 0;
         string fullChoiceText = isRight ? CurrentData.rightChoiceText : CurrentData.leftChoiceText;
         
-        // При смене направления сбрасываем прогресс
+        // При смене направления запускаем disappear и ждём
         if (actionAnimator != null)
         {
-            if (actionAnimator.CurrentText != fullChoiceText)
+            if (actionAnimator.CurrentText != fullChoiceText && !_isWaitingForDisappear)
             {
-                actionAnimator.SetText(fullChoiceText);
-                actionAnimator.ResetProgress();
+                // Если текст уже есть, запускаем пропадание перед сменой
+                if (!string.IsNullOrEmpty(actionAnimator.CurrentText))
+                {
+                    StartDisappearAndChangeText(fullChoiceText, DisappearMode.Return);
+                }
+                else
+                {
+                    actionAnimator.SetText(fullChoiceText);
+                    actionAnimator.ResetProgress();
+                }
             }
         }
         else if (actionText)
@@ -501,16 +496,21 @@ public class CardDisplay : MonoBehaviour
         }
         
         // Передаем целевое количество символов и прогресс в TextAnimator
+        // НО только если НЕ ждём завершения disappear анимации
         if (actionAnimator != null)
         {
-            actionAnimator.SetTargetCharacterCount(targetIntChars);
-            
-            // Передаем прогресс для управления интенсивностью per-letter эффектов
-            actionAnimator.SetProgress(clampedProgress);
+            if (!_isWaitingForDisappear)
+            {
+                actionAnimator.SetTargetCharacterCount(targetIntChars);
+                
+                // Передаем прогресс для управления интенсивностью per-letter эффектов
+                actionAnimator.SetProgress(clampedProgress);
+            }
+            // Если ждём disappear - ничего не делаем, ждём завершения анимации
         }
         else if (actionText)
         {
-            // Fallback для старой системы
+            // Fallback для старой системы (только если нет actionAnimator)
             actionText.maxVisibleCharacters = targetIntChars;
             
             // Оставляем старую анимацию скейла только для fallback
@@ -542,10 +542,10 @@ public class CardDisplay : MonoBehaviour
         _isLocked = true;
         _isInteractable = false;
         
+        // Запускаем анимацию пропадания Selected (одновременно все буквы)
         if (actionAnimator != null)
         {
-            actionAnimator.SetText("");
-            actionAnimator.ResetProgress();
+            actionAnimator.TriggerSelected();
         }
         else if (actionText)
         {
@@ -576,5 +576,109 @@ public class CardDisplay : MonoBehaviour
         {
             GameManager.Instance.OnCardAnimationComplete();
         });
+    }
+    
+    /// <summary>
+    /// Запускает анимацию пропадания при возврате к центру.
+    /// </summary>
+    void TriggerReturnToCenterWithDelay()
+    {
+        if (actionAnimator != null && !string.IsNullOrEmpty(actionAnimator.CurrentText))
+        {
+            // Если текст уже пропадает или уже пустой, ничего не делаем
+            if (_isWaitingForDisappear) return;
+            
+            actionAnimator.TriggerReturnToCenter();
+            
+            // Запускаем корутину для очистки после анимации
+            if (_disappearCoroutine != null)
+            {
+                StopCoroutine(_disappearCoroutine);
+            }
+            _disappearCoroutine = StartCoroutine(WaitForDisappearAndClear());
+        }
+        else if (actionText)
+        {
+            actionText.text = "";
+            actionText.maxVisibleCharacters = 0;
+        }
+    }
+    
+    /// <summary>
+    /// Запускает анимацию пропадания и затем меняет текст.
+    /// </summary>
+    void StartDisappearAndChangeText(string newText, DisappearMode mode)
+    {
+        if (actionAnimator == null) return;
+        if (_isWaitingForDisappear) return;
+        
+        _pendingText = newText;
+        _isWaitingForDisappear = true;
+        
+        if (mode == DisappearMode.Return)
+        {
+            actionAnimator.TriggerReturnToCenter();
+        }
+        else if (mode == DisappearMode.Selected)
+        {
+            actionAnimator.TriggerSelected();
+        }
+        else
+        {
+            actionAnimator.TriggerDisappear(mode);
+        }
+        
+        if (_disappearCoroutine != null)
+        {
+            StopCoroutine(_disappearCoroutine);
+        }
+        _disappearCoroutine = StartCoroutine(WaitForDisappearAndChangeText());
+    }
+    
+    IEnumerator WaitForDisappearAndClear()
+    {
+        _isWaitingForDisappear = true;
+        
+        // Получаем длительность анимации из preset + буфер для гарантированного завершения
+        float waitTime = 0.3f; // fallback
+        if (actionAnimator != null && actionAnimator.preset != null)
+        {
+            // Удвоенное время + буфер для гарантии
+            waitTime = actionAnimator.preset.disappearReturnDuration * 2f + 0.08f;
+        }
+        
+        yield return new WaitForSeconds(waitTime);
+        
+        if (actionAnimator != null)
+        {
+            actionAnimator.SetText("");
+            actionAnimator.ResetProgress();
+        }
+        
+        _isWaitingForDisappear = false;
+        _disappearCoroutine = null;
+    }
+    
+    IEnumerator WaitForDisappearAndChangeText()
+    {
+        // Получаем длительность анимации из preset + буфер для гарантированного завершения
+        float waitTime = 0.3f; // fallback
+        if (actionAnimator != null && actionAnimator.preset != null)
+        {
+            // Удвоенное время + буфер для гарантии
+            waitTime = actionAnimator.preset.disappearReturnDuration * 2f + 0.08f;
+        }
+        
+        yield return new WaitForSeconds(waitTime);
+        
+        if (actionAnimator != null && !string.IsNullOrEmpty(_pendingText))
+        {
+            actionAnimator.SetText(_pendingText);
+            actionAnimator.ResetProgress();
+        }
+        
+        _pendingText = null;
+        _isWaitingForDisappear = false;
+        _disappearCoroutine = null;
     }
 }

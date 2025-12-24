@@ -126,6 +126,12 @@ public class TextAnimator : MonoBehaviour
     
     // Current disappear mode for active disappearing
     private DisappearMode _currentDisappearMode = DisappearMode.Normal;
+    
+    // Flag to block distance-based updates during fast disappear (Return/Selected)
+    private bool _isFastDisappearing = false;
+    
+    // Public property for external check
+    public bool IsFastDisappearing => _isFastDisappearing;
 
     void Awake()
     {
@@ -205,6 +211,9 @@ public class TextAnimator : MonoBehaviour
 
     public void SetText(string text)
     {
+        // Сбрасываем флаг быстрого пропадания при установке нового текста
+        _isFastDisappearing = false;
+        
         _textToAnimate = text;
         
         int charCount = string.IsNullOrEmpty(text) ? 0 : text.Length;
@@ -312,10 +321,22 @@ public class TextAnimator : MonoBehaviour
         _currentDisappearMode = mode;
         LetterState targetState = GetDisappearStateFromMode(mode);
         
+        // Для Return и Selected блокируем distance-based обновления
+        _isFastDisappearing = (mode == DisappearMode.Return || mode == DisappearMode.Selected);
+        
         for (int i = 0; i < _letterData.Length; i++)
         {
-            if (_letterData[i].state != LetterState.Hidden && !IsDisappearingState(_letterData[i].state))
+            // Принудительно переключаем ВСЕ видимые буквы на disappear
+            if (_letterData[i].state != LetterState.Hidden)
             {
+                // Сохраняем текущие значения для кроссфейда
+                _letterData[i].prevScale = _letterData[i].currentScale;
+                _letterData[i].prevAlpha = _letterData[i].currentAlpha;
+                _letterData[i].prevOffset = _letterData[i].currentOffset;
+                _letterData[i].prevRotation = _letterData[i].currentRotation;
+                _letterData[i].previousState = _letterData[i].state;
+                _letterData[i].transitionProgress = 0f;
+                
                 _letterData[i].state = targetState;
                 _letterData[i].stateTime = 0f;
             }
@@ -323,6 +344,7 @@ public class TextAnimator : MonoBehaviour
         
         // Сбрасываем target чтобы новые буквы не появлялись
         _targetCharCount = 0;
+        _currentVisibleCharsFloat = 0f;
     }
     
     /// <summary>
@@ -450,6 +472,27 @@ public class TextAnimator : MonoBehaviour
     private void UpdateDistanceBasedAnimation()
     {
         if (string.IsNullOrEmpty(_textToAnimate) || _letterData == null) return;
+        
+        // Блокируем обновление во время быстрого пропадания
+        if (_isFastDisappearing)
+        {
+            // Проверяем, завершилось ли пропадание всех букв
+            bool allHidden = true;
+            for (int i = 0; i < _letterData.Length; i++)
+            {
+                if (_letterData[i].state != LetterState.Hidden)
+                {
+                    allHidden = false;
+                    break;
+                }
+            }
+            
+            if (allHidden)
+            {
+                _isFastDisappearing = false;
+            }
+            return;
+        }
 
         int totalChars = _textToAnimate.Length;
         
@@ -611,11 +654,17 @@ public class TextAnimator : MonoBehaviour
             Vector2 targetOffset = Vector2.Lerp(letter.prevOffset, result.offset, smoothT);
             float targetRotation = Mathf.Lerp(letter.prevRotation, result.rotation, smoothT);
             
+            // Для быстрых disappear режимов (Return/Selected) используем более быструю интерполяцию
+            // чтобы анимация была чёткой и синхронной
+            bool isFastDisappear = letter.state == LetterState.DisappearingReturn || 
+                                   letter.state == LetterState.DisappearingSelected;
+            float effectiveSmooth = isFastDisappear ? 50f : EffectSmoothSpeed;
+            
             // Дополнительная интерполяция для сглаживания резких изменений в самих эффектах
-            letter.currentScale = Mathf.Lerp(letter.currentScale, targetScale, dt * EffectSmoothSpeed);
-            letter.currentAlpha = Mathf.Lerp(letter.currentAlpha, targetAlpha, dt * EffectSmoothSpeed);
-            letter.currentOffset = Vector2.Lerp(letter.currentOffset, targetOffset, dt * EffectSmoothSpeed);
-            letter.currentRotation = Mathf.Lerp(letter.currentRotation, targetRotation, dt * EffectSmoothSpeed);
+            letter.currentScale = Mathf.Lerp(letter.currentScale, targetScale, dt * effectiveSmooth);
+            letter.currentAlpha = Mathf.Lerp(letter.currentAlpha, targetAlpha, dt * effectiveSmooth);
+            letter.currentOffset = Vector2.Lerp(letter.currentOffset, targetOffset, dt * effectiveSmooth);
+            letter.currentRotation = Mathf.Lerp(letter.currentRotation, targetRotation, dt * effectiveSmooth);
         }
     }
 
