@@ -101,6 +101,35 @@ public class TextAnimator : MonoBehaviour
     void Awake()
     {
         _textComponent = GetComponent<TMP_Text>();
+        
+        // CRITICAL: Инициализируем _textToAnimate пустой строкой
+        // Это гарантирует что CurrentText вернет "", а не null
+        // И Shadow будет знать что текст ещё не установлен через SetText
+        _textToAnimate = "";
+        
+        // Если в TMP есть заранее установленный текст в Inspector (placeholder),
+        // мы должны скрыть его до вызова SetText
+        if (_textComponent != null && !string.IsNullOrEmpty(_textComponent.text))
+        {
+            // Устанавливаем alpha=0 для всего mesh чтобы предотвратить отображение placeholder текста
+            _textComponent.ForceMeshUpdate();
+            TMP_TextInfo textInfo = _textComponent.textInfo;
+            if (textInfo != null)
+            {
+                for (int m = 0; m < textInfo.meshInfo.Length; m++)
+                {
+                    Color32[] colors = textInfo.meshInfo[m].colors32;
+                    if (colors != null)
+                    {
+                        for (int c = 0; c < colors.Length; c++)
+                        {
+                            colors[c].a = 0;
+                        }
+                    }
+                }
+                _textComponent.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
+            }
+        }
     }
 
     void OnEnable()
@@ -161,6 +190,28 @@ public class TextAnimator : MonoBehaviour
         _textComponent.ForceMeshUpdate();
         
         CacheMeshInfo();
+        
+        // CRITICAL: Сразу применяем alpha=0 ко всему тексту, чтобы избежать 1-кадрового "вспыхивания"
+        // когда Shadow считывает mesh до того как ApplyMeshChanges() отработает
+        if (charCount > 0)
+        {
+            TMP_TextInfo textInfo = _textComponent.textInfo;
+            if (textInfo != null)
+            {
+                for (int m = 0; m < textInfo.meshInfo.Length; m++)
+                {
+                    Color32[] colors = textInfo.meshInfo[m].colors32;
+                    if (colors != null)
+                    {
+                        for (int c = 0; c < colors.Length; c++)
+                        {
+                            colors[c].a = 0;
+                        }
+                    }
+                }
+                _textComponent.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
+            }
+        }
         
         if (Mode == AnimationMode.TimeBasedTypewriter)
         {

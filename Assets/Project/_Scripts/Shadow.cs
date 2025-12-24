@@ -50,6 +50,7 @@ public class Shadow : MonoBehaviour
     private SpriteRenderer _shadowSprite;
     private TMP_Text _shadowText;
     private TextAnimator _shadowAnimator; // TextAnimator для синхронизации с оригиналом
+    private TextAnimator _targetAnimator; // Кэшированная ссылка на TextAnimator оригинала
     
     private bool _hasInitialized = false;
 
@@ -171,9 +172,9 @@ public class Shadow : MonoBehaviour
         _shadowText.raycastTarget = false;
         _shadowText.color = shadowColor;
         
-        // Проверяем, есть ли TextAnimator на оригинале
-        TextAnimator targetAnimator = targetText.GetComponent<TextAnimator>();
-        if (targetAnimator != null)
+        // Кэшируем ссылку на TextAnimator оригинала
+        _targetAnimator = targetText.GetComponent<TextAnimator>();
+        if (_targetAnimator != null)
         {
             // Добавляем TextAnimator и на shadow для синхронизации
             _shadowAnimator = _shadowObject.AddComponent<TextAnimator>();
@@ -241,12 +242,63 @@ public class Shadow : MonoBehaviour
         {
             SyncText();
             
+            // Проверяем TextAnimator - если он есть и его текст пуст, скрываем тень
+            // Это предотвращает показ тени от исходного TMP текста до вызова SetText
+            if (_targetAnimator != null)
+            {
+                if (string.IsNullOrEmpty(_targetAnimator.CurrentText))
+                {
+                    finalColor.a = 0;
+                    _shadowText.color = finalColor;
+                    _shadowObject.SetActive(false); // Полностью скрываем тень
+                    return;
+                }
+                else
+                {
+                    _shadowObject.SetActive(true); // Активируем если есть текст
+                }
+            }
+            
             // Если текст пустой или нет видимых символов - скрываем тень
             if (string.IsNullOrEmpty(targetText.text) || targetText.maxVisibleCharacters == 0)
             {
                 finalColor.a = 0; // Полностью прозрачная тень
                 _shadowText.color = finalColor;
+                _shadowObject.SetActive(false);
                 return; // Не применяем offset/per-character shadow
+            }
+            else
+            {
+                _shadowObject.SetActive(true);
+            }
+            
+            // Дополнительная проверка: если все символы имеют alpha=0 (Hidden state) - скрываем тень
+            bool hasAnyVisibleChar = false;
+            if (targetText.textInfo != null && targetText.textInfo.characterCount > 0)
+            {
+                for (int i = 0; i < targetText.textInfo.meshInfo.Length && !hasAnyVisibleChar; i++)
+                {
+                    Color32[] colors = targetText.textInfo.meshInfo[i].colors32;
+                    if (colors != null)
+                    {
+                        for (int c = 0; c < colors.Length; c++)
+                        {
+                            if (colors[c].a > 0)
+                            {
+                                hasAnyVisibleChar = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (!hasAnyVisibleChar)
+            {
+                finalColor.a = 0;
+                _shadowText.color = finalColor;
+                _shadowObject.SetActive(false);
+                return;
             }
             
             targetAlpha = targetText.alpha;
@@ -327,8 +379,8 @@ public class Shadow : MonoBehaviour
         // Use pre-calculated effective intensity from LateUpdate
         float effectiveIntensity = currentEffectiveIntensity;
         
-        // Force mesh update
-        targetText.ForceMeshUpdate();
+        // IMPORTANT: НЕ вызываем targetText.ForceMeshUpdate()!
+        // TextAnimator уже применил per-letter эффекты. Только обновляем mesh тени.
         _shadowText.ForceMeshUpdate();
         
         TMP_TextInfo textInfo = _shadowText.textInfo;
@@ -349,12 +401,14 @@ public class Shadow : MonoBehaviour
             
             // Safety check
             if (materialIndex >= textInfo.meshInfo.Length) continue;
+            if (targetText.textInfo == null || materialIndex >= targetText.textInfo.meshInfo.Length) continue;
             
             // Get the vertices for this character
             Vector3[] sourceVertices = targetText.textInfo.meshInfo[materialIndex].vertices;
             Vector3[] destinationVertices = textInfo.meshInfo[materialIndex].vertices;
             
-            // Safety check
+            // Safety check for null arrays and bounds
+            if (sourceVertices == null || destinationVertices == null) continue;
             if (vertexIndex + 3 >= destinationVertices.Length || vertexIndex + 3 >= sourceVertices.Length) continue;
             
             // Calculate character center in local space
@@ -395,12 +449,34 @@ public class Shadow : MonoBehaviour
             destinationVertices[vertexIndex + 1] = sourceVertices[vertexIndex + 1] + offsetLocal;
             destinationVertices[vertexIndex + 2] = sourceVertices[vertexIndex + 2] + offsetLocal;
             destinationVertices[vertexIndex + 3] = sourceVertices[vertexIndex + 3] + offsetLocal;
+            
+            // CRITICAL: Sync per-character alpha from original to shadow
+            // This ensures shadow visibility matches animated letter visibility (Hidden/Appearing states)
+            if (targetText.textInfo == null || targetText.textInfo.meshInfo == null) continue;
+            if (materialIndex >= targetText.textInfo.meshInfo.Length) continue;
+            
+            Color32[] sourceColors = targetText.textInfo.meshInfo[materialIndex].colors32;
+            Color32[] destColors = textInfo.meshInfo[materialIndex].colors32;
+            
+            if (sourceColors != null && destColors != null && vertexIndex + 3 < sourceColors.Length && vertexIndex + 3 < destColors.Length)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    // Take alpha from original character (respects TextAnimator per-letter alpha)
+                    float sourceAlpha = sourceColors[vertexIndex + j].a / 255f;
+                    Color32 shadowCol = destColors[vertexIndex + j];
+                    // Shadow alpha = original alpha * shadow base alpha
+                    shadowCol.a = (byte)(sourceAlpha * shadowColor.a * 255f);
+                    destColors[vertexIndex + j] = shadowCol;
+                }
+            }
         }
         
-        // Update all meshes
+        // Update all meshes (vertices AND colors)
         for (int i = 0; i < textInfo.meshInfo.Length; i++)
         {
             textInfo.meshInfo[i].mesh.vertices = textInfo.meshInfo[i].vertices;
+            textInfo.meshInfo[i].mesh.colors32 = textInfo.meshInfo[i].colors32;
             _shadowText.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
         }
     }
@@ -419,9 +495,10 @@ public class Shadow : MonoBehaviour
         TextAnimator textAnimator = targetText.GetComponent<TextAnimator>();
         if (textAnimator != null)
         {
-            // NEW: Копируем ВСЕ mesh данные (vertices + colors) для полной синхронизации
-            // с per-letter эффектами TextAnimator (scale, rotation, offset, alpha)
-            targetText.ForceMeshUpdate();
+            // IMPORTANT: НЕ вызываем targetText.ForceMeshUpdate()!
+            // TextAnimator уже применил per-letter эффекты к mesh в своём LateUpdate.
+            // Вызов ForceMeshUpdate сбросит все эти изменения (alpha=0 для скрытых букв).
+            // Только обновляем mesh тени.
             _shadowText.ForceMeshUpdate();
             
             if (targetText.textInfo != null && _shadowText.textInfo != null)
@@ -441,6 +518,7 @@ public class Shadow : MonoBehaviour
                     }
                     
                     // NEW: Копируем alpha из colors32 для синхронизации прозрачности букв
+                    // Тень должна быть невидима для букв с alpha=0 (Hidden/Appearing state)
                     var sourceColors = targetText.textInfo.meshInfo[i].colors32;
                     var targetColors = _shadowText.textInfo.meshInfo[i].colors32;
                     
@@ -449,9 +527,12 @@ public class Shadow : MonoBehaviour
                         int colorCount = Mathf.Min(sourceColors.Length, targetColors.Length);
                         for (int c = 0; c < colorCount; c++)
                         {
-                            // Сохраняем RGB тени, но берем alpha из оригинала
+                            // Берём alpha из оригинала - если буква ещё не появилась, её alpha=0
+                            // и тень тоже будет невидима
+                            float sourceAlpha = sourceColors[c].a / 255f;
                             Color32 shadowCol = targetColors[c];
-                            shadowCol.a = (byte)(sourceColors[c].a * (shadowColor.a));
+                            // Применяем: originalAlpha * shadowAlpha
+                            shadowCol.a = (byte)(sourceAlpha * shadowColor.a * 255f);
                             targetColors[c] = shadowCol;
                         }
                     }
