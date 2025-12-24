@@ -12,17 +12,140 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a064b5de9435f44ba6877670473eb7e, type: 3}
   m_Name: ActionText
   m_EditorClassIdentifier: Assembly-CSharp::TextAnimatorPreset
+  mode: 1
+  enableEffects: 1
+  charactersPerSecond: 30
+  delay: 0
+  startOnEnable: 0
+  interpolationSpeed: 15
   appearDuration: 0.25
   appearStagger: 0.03
   disappearDuration: 0.15
   effectSmoothSpeed: 15
   appearEffects:
-    effects: []
+    effects:
+    - type: 3
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
+    - type: 4
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
+    - type: 5
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
   idleEffects:
-    effects: []
+    effects:
+    - type: 1
+      waveAmplitude: 3
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
   activeEffects:
-    effects: []
+    effects:
+    - type: 1
+      waveAmplitude: 5
+      waveSpeedMin: 1.5
+      waveSpeedMax: 3
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
   selectedEffects:
-    effects: []
+    effects:
+    - type: 1
+      waveAmplitude: 6
+      waveSpeedMin: 1.5
+      waveSpeedMax: 3
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
+    - type: 2
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 0
+      fadeTo: 1
+      slideDirection: 0
+      slideDistance: 20
+      jitterIntensity: 2
+      jitterSpeed: 30
   disappearEffects:
-    effects: []
+    effects:
+    - type: 4
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 1
+      fadeTo: 0
+      slideDirection: 1
+      slideDistance: 15
+      jitterIntensity: 2
+      jitterSpeed: 30
+    - type: 5
+      waveAmplitude: 4
+      waveSpeedMin: 1
+      waveSpeedMax: 2.5
+      pulseAmplitude: 0.1
+      pulseSpeed: 6
+      bounceOvershoot: 1.2
+      fadeFrom: 1
+      fadeTo: 0
+      slideDirection: 1
+      slideDistance: 15
+      jitterIntensity: 2
+      jitterSpeed: 30
