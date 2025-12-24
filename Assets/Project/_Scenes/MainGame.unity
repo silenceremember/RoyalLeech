@@ -1147,15 +1147,33 @@ MonoBehaviour:
   fillImage: {fileID: 2066376435}
   layerCount: 5
   layerOffset: {x: 1, y: -1}
-  bgDepthColor: {r: 0.15, g: 0.15, b: 0.15, a: 0.5}
-  fillDepthColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}
+  bgDepthColor:
+    r: 0.15
+    g: 0.15
+    b: 0.15
+    a: 0.5
+  fillDepthColor:
+    r: 0.2
+    g: 0.2
+    b: 0.2
+    a: 1
   useGradient: 1
   addShadow: 1
   shadowOffset: {x: 4, y: -4}
-  shadowColor: {r: 0, g: 0, b: 0, a: 0.4}
+  shadowColor:
+    r: 0
+    g: 0
+    b: 0
+    a: 0.4
   rotation3D: {x: 0, y: 0, z: 0}
   followMouse: 0
   mouseInfluence: 5
+  _bgDepthLayers: []
+  _fillDepthLayers: []
+  _shadowImage: {fileID: 0}
+  _rectTransform: {fileID: 0}
+  _canvas: {fileID: 0}
+  _initialized: 0
 --- !u!1 &765449690
 GameObject:
   m_ObjectHideFlags: 0
@@ -1213,6 +1231,7 @@ GameObject:
   - component: {fileID: 791369280}
   - component: {fileID: 791369279}
   - component: {fileID: 791369278}
+  - component: {fileID: 791369281}
   m_Layer: 5
   m_Name: Hearts_BG
   m_TagString: Untagged
@@ -1266,7 +1285,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 0.39215687}
+  m_Color: {r: 0.6156863, g: 0.6156863, b: 0.6156863, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1291,6 +1310,28 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 791369276}
   m_CullTransparentMesh: 1
+--- !u!114 &791369281
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 791369276}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14c50467194d3f438a4f148d88c453f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BalatroShadow
+  shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
+  intensity: 5
+  useScaleInfluence: 1
+  scaleInfluence: 10
+  scaleReference: {fileID: 0}
+  currentEffectiveIntensity: 5
+  perCharacterShadow: 1
+  targetGraphic: {fileID: 0}
+  targetSpriteRenderer: {fileID: 0}
+  targetText: {fileID: 0}
 --- !u!1 &819786472
 GameObject:
   m_ObjectHideFlags: 0
@@ -1366,15 +1407,33 @@ MonoBehaviour:
   fillImage: {fileID: 290773390}
   layerCount: 5
   layerOffset: {x: 1, y: -1}
-  bgDepthColor: {r: 0.15, g: 0.15, b: 0.15, a: 0.5}
-  fillDepthColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}
+  bgDepthColor:
+    r: 0.15
+    g: 0.15
+    b: 0.15
+    a: 0.5
+  fillDepthColor:
+    r: 0.2
+    g: 0.2
+    b: 0.2
+    a: 1
   useGradient: 1
   addShadow: 1
   shadowOffset: {x: 4, y: -4}
-  shadowColor: {r: 0, g: 0, b: 0, a: 0.4}
-  rotation3D: {x: 0, y: 0, z: 0}
-  followMouse: 0
+  shadowColor:
+    r: 0
+    g: 0
+    b: 0
+    a: 0.4
+  rotation3D: {x: 5, y: 5, z: 5}
+  followMouse: 1
   mouseInfluence: 5
+  _bgDepthLayers: []
+  _fillDepthLayers: []
+  _shadowImage: {fileID: 0}
+  _rectTransform: {fileID: 0}
+  _canvas: {fileID: 0}
+  _initialized: 0
 --- !u!1 &853034487
 GameObject:
   m_ObjectHideFlags: 0
@@ -1682,6 +1741,7 @@ GameObject:
   - component: {fileID: 1161021128}
   - component: {fileID: 1161021127}
   - component: {fileID: 1161021126}
+  - component: {fileID: 1161021129}
   m_Layer: 5
   m_Name: Spades_BG
   m_TagString: Untagged
@@ -1735,7 +1795,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 0.39215687}
+  m_Color: {r: 0.6132076, g: 0.6132076, b: 0.6132076, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1760,6 +1820,28 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1161021124}
   m_CullTransparentMesh: 1
+--- !u!114 &1161021129
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1161021124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14c50467194d3f438a4f148d88c453f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BalatroShadow
+  shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
+  intensity: 5
+  useScaleInfluence: 1
+  scaleInfluence: 10
+  scaleReference: {fileID: 0}
+  currentEffectiveIntensity: 5
+  perCharacterShadow: 1
+  targetGraphic: {fileID: 0}
+  targetSpriteRenderer: {fileID: 0}
+  targetText: {fileID: 0}
 --- !u!1 &1328840026
 GameObject:
   m_ObjectHideFlags: 0
@@ -2056,6 +2138,7 @@ GameObject:
   - component: {fileID: 1524703378}
   - component: {fileID: 1524703377}
   - component: {fileID: 1524703376}
+  - component: {fileID: 1524703379}
   m_Layer: 5
   m_Name: Diamonds_BG
   m_TagString: Untagged
@@ -2109,7 +2192,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 0.39215687}
+  m_Color: {r: 0.6156863, g: 0.6156863, b: 0.6156863, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2134,6 +2217,28 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1524703374}
   m_CullTransparentMesh: 1
+--- !u!114 &1524703379
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1524703374}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14c50467194d3f438a4f148d88c453f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BalatroShadow
+  shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
+  intensity: 5
+  useScaleInfluence: 1
+  scaleInfluence: 10
+  scaleReference: {fileID: 0}
+  currentEffectiveIntensity: 5
+  perCharacterShadow: 1
+  targetGraphic: {fileID: 0}
+  targetSpriteRenderer: {fileID: 0}
+  targetText: {fileID: 0}
 --- !u!1 &1579959003
 GameObject:
   m_ObjectHideFlags: 0
@@ -2347,15 +2452,33 @@ MonoBehaviour:
   fillImage: {fileID: 1918162389}
   layerCount: 5
   layerOffset: {x: 1, y: -1}
-  bgDepthColor: {r: 0.15, g: 0.15, b: 0.15, a: 0.5}
-  fillDepthColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}
+  bgDepthColor:
+    r: 0.15
+    g: 0.15
+    b: 0.15
+    a: 0.5
+  fillDepthColor:
+    r: 0.2
+    g: 0.2
+    b: 0.2
+    a: 1
   useGradient: 1
   addShadow: 1
   shadowOffset: {x: 4, y: -4}
-  shadowColor: {r: 0, g: 0, b: 0, a: 0.4}
+  shadowColor:
+    r: 0
+    g: 0
+    b: 0
+    a: 0.4
   rotation3D: {x: 0, y: 0, z: 0}
   followMouse: 0
   mouseInfluence: 5
+  _bgDepthLayers: []
+  _fillDepthLayers: []
+  _shadowImage: {fileID: 0}
+  _rectTransform: {fileID: 0}
+  _canvas: {fileID: 0}
+  _initialized: 0
 --- !u!1 &1918162386
 GameObject:
   m_ObjectHideFlags: 0
@@ -2458,6 +2581,7 @@ GameObject:
   - component: {fileID: 2041120562}
   - component: {fileID: 2041120561}
   - component: {fileID: 2041120560}
+  - component: {fileID: 2041120563}
   m_Layer: 5
   m_Name: Clubs_BG
   m_TagString: Untagged
@@ -2511,7 +2635,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 0.39215687}
+  m_Color: {r: 0.6156863, g: 0.6156863, b: 0.6156863, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2536,6 +2660,28 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2041120558}
   m_CullTransparentMesh: 1
+--- !u!114 &2041120563
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2041120558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14c50467194d3f438a4f148d88c453f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BalatroShadow
+  shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
+  intensity: 5
+  useScaleInfluence: 1
+  scaleInfluence: 10
+  scaleReference: {fileID: 0}
+  currentEffectiveIntensity: 5
+  perCharacterShadow: 1
+  targetGraphic: {fileID: 0}
+  targetSpriteRenderer: {fileID: 0}
+  targetText: {fileID: 0}
 --- !u!1 &2063988427
 GameObject:
   m_ObjectHideFlags: 0
@@ -2791,15 +2937,33 @@ MonoBehaviour:
   fillImage: {fileID: 2063988430}
   layerCount: 5
   layerOffset: {x: 1, y: -1}
-  bgDepthColor: {r: 0.15, g: 0.15, b: 0.15, a: 0.5}
-  fillDepthColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}
+  bgDepthColor:
+    r: 0.15
+    g: 0.15
+    b: 0.15
+    a: 0.5
+  fillDepthColor:
+    r: 0.2
+    g: 0.2
+    b: 0.2
+    a: 1
   useGradient: 1
   addShadow: 1
   shadowOffset: {x: 4, y: -4}
-  shadowColor: {r: 0, g: 0, b: 0, a: 0.4}
+  shadowColor:
+    r: 0
+    g: 0
+    b: 0
+    a: 0.4
   rotation3D: {x: 0, y: 0, z: 0}
   followMouse: 0
   mouseInfluence: 5
+  _bgDepthLayers: []
+  _fillDepthLayers: []
+  _shadowImage: {fileID: 0}
+  _rectTransform: {fileID: 0}
+  _canvas: {fileID: 0}
+  _initialized: 0
 --- !u!1 &2096314088
 GameObject:
   m_ObjectHideFlags: 0
