@@ -27,20 +27,34 @@ public enum LetterState
 public struct LetterData
 {
     public LetterState state;
+    public LetterState previousState;
     public float stateTime;
+    public float transitionProgress; // 0 = still blending from previous, 1 = fully in new state
     public float currentScale;
     public float currentAlpha;
     public Vector2 currentOffset;
     public float currentRotation;
     
+    // Сохранённые значения из предыдущего состояния для кроссфейда
+    public float prevScale;
+    public float prevAlpha;
+    public Vector2 prevOffset;
+    public float prevRotation;
+    
     public static LetterData Hidden => new LetterData
     {
         state = LetterState.Hidden,
+        previousState = LetterState.Hidden,
         stateTime = 0f,
+        transitionProgress = 1f,
         currentScale = 0f,
         currentAlpha = 0f,
         currentOffset = Vector2.zero,
-        currentRotation = 0f
+        currentRotation = 0f,
+        prevScale = 0f,
+        prevAlpha = 0f,
+        prevOffset = Vector2.zero,
+        prevRotation = 0f
     };
 }
 
@@ -97,6 +111,7 @@ public class TextAnimator : MonoBehaviour
     private float AppearStagger => preset != null ? preset.appearStagger : 0.03f;
     private float DisappearDuration => preset != null ? preset.disappearDuration : 0.15f;
     private float EffectSmoothSpeed => preset != null ? preset.effectSmoothSpeed : 15f;
+    private float StateTransitionDuration => preset != null ? preset.stateTransitionDuration : 0.15f;
 
     void Awake()
     {
@@ -425,13 +440,21 @@ public class TextAnimator : MonoBehaviour
         if (_letterData == null || preset == null) return;
         
         float dt = Time.deltaTime;
+        float transitionSpeed = StateTransitionDuration > 0.001f ? 1f / StateTransitionDuration : 100f;
         
         for (int i = 0; i < _letterData.Length; i++)
         {
             ref LetterData letter = ref _letterData[i];
             letter.stateTime += dt;
             
+            // Обновляем прогресс transition
+            if (letter.transitionProgress < 1f)
+            {
+                letter.transitionProgress = Mathf.MoveTowards(letter.transitionProgress, 1f, dt * transitionSpeed);
+            }
+            
             EffectResult result = EffectResult.Identity;
+            LetterState newState = letter.state;
             
             switch (letter.state)
             {
@@ -446,16 +469,16 @@ public class TextAnimator : MonoBehaviour
                     
                     if (appearT >= 1f)
                     {
-                        letter.state = progress > 0.01f ? LetterState.Active : LetterState.Idle;
-                        letter.stateTime = 0f;
+                        newState = progress > 0.01f ? LetterState.Active : LetterState.Idle;
                     }
                     break;
                     
                 case LetterState.Idle:
                 case LetterState.Active:
                 case LetterState.Selected:
-                    letter.state = progress >= 1f ? LetterState.Selected : 
+                    LetterState targetState = progress >= 1f ? LetterState.Selected : 
                                    (progress > 0.01f ? LetterState.Active : LetterState.Idle);
+                    newState = targetState;
                     result = preset.CalculateIdle(_animationTime, i, progress);
                     break;
                     
@@ -465,17 +488,44 @@ public class TextAnimator : MonoBehaviour
                     
                     if (disappearT >= 1f)
                     {
-                        letter.state = LetterState.Hidden;
-                        letter.stateTime = 0f;
+                        newState = LetterState.Hidden;
                     }
                     break;
             }
             
-            // Interpolation
-            letter.currentScale = Mathf.MoveTowards(letter.currentScale, result.scale, dt * EffectSmoothSpeed);
-            letter.currentAlpha = Mathf.MoveTowards(letter.currentAlpha, result.alpha, dt * EffectSmoothSpeed);
-            letter.currentOffset = Vector2.MoveTowards(letter.currentOffset, result.offset, dt * EffectSmoothSpeed * 10f);
-            letter.currentRotation = Mathf.MoveTowards(letter.currentRotation, result.rotation, dt * EffectSmoothSpeed);
+            // Проверяем смену состояния (кроме переходов между Idle/Active/Selected - они плавные через progress)
+            bool isIdleGroup = letter.state == LetterState.Idle || letter.state == LetterState.Active || letter.state == LetterState.Selected;
+            bool newIsIdleGroup = newState == LetterState.Idle || newState == LetterState.Active || newState == LetterState.Selected;
+            
+            if (newState != letter.state && !(isIdleGroup && newIsIdleGroup))
+            {
+                // Сохраняем текущие значения для кроссфейда
+                letter.prevScale = letter.currentScale;
+                letter.prevAlpha = letter.currentAlpha;
+                letter.prevOffset = letter.currentOffset;
+                letter.prevRotation = letter.currentRotation;
+                letter.previousState = letter.state;
+                letter.transitionProgress = 0f;
+                letter.stateTime = 0f;
+            }
+            
+            letter.state = newState;
+            
+            // Применяем кроссфейд
+            float t = letter.transitionProgress;
+            float smoothT = t * t * (3f - 2f * t); // Smooth step для более плавного перехода
+            
+            // Целевые значения с интерполяцией через EffectSmoothSpeed
+            float targetScale = Mathf.Lerp(letter.prevScale, result.scale, smoothT);
+            float targetAlpha = Mathf.Lerp(letter.prevAlpha, result.alpha, smoothT);
+            Vector2 targetOffset = Vector2.Lerp(letter.prevOffset, result.offset, smoothT);
+            float targetRotation = Mathf.Lerp(letter.prevRotation, result.rotation, smoothT);
+            
+            // Дополнительная интерполяция для сглаживания резких изменений в самих эффектах
+            letter.currentScale = Mathf.Lerp(letter.currentScale, targetScale, dt * EffectSmoothSpeed);
+            letter.currentAlpha = Mathf.Lerp(letter.currentAlpha, targetAlpha, dt * EffectSmoothSpeed);
+            letter.currentOffset = Vector2.Lerp(letter.currentOffset, targetOffset, dt * EffectSmoothSpeed);
+            letter.currentRotation = Mathf.Lerp(letter.currentRotation, targetRotation, dt * EffectSmoothSpeed);
         }
     }
 

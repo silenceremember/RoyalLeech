@@ -58,6 +58,10 @@ public class TextAnimatorPreset : ScriptableObject
     [Range(5f, 30f)]
     public float effectSmoothSpeed = 15f;
     
+    [Tooltip("Время плавного перехода между состояниями (кроссфейд)")]
+    [Range(0.05f, 0.5f)]
+    public float stateTransitionDuration = 0.15f;
+    
     [Header("=== APPEAR EFFECTS ===")]
     [Tooltip("Эффекты при появлении буквы")]
     public StateEffects appearEffects = new StateEffects();
