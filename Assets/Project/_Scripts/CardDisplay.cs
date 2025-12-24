@@ -500,22 +500,25 @@ public class CardDisplay : MonoBehaviour
             targetIntChars = Mathf.Clamp(targetIntChars, 0, totalChars);
         }
         
-        // Передаем целевое количество символов в TextAnimator (дистанционный режим)
+        // Передаем целевое количество символов и прогресс в TextAnimator
         if (actionAnimator != null)
         {
             actionAnimator.SetTargetCharacterCount(targetIntChars);
+            
+            // Передаем прогресс для управления интенсивностью per-letter эффектов
+            actionAnimator.SetProgress(clampedProgress);
         }
         else if (actionText)
         {
             // Fallback для старой системы
             actionText.maxVisibleCharacters = targetIntChars;
+            
+            // Оставляем старую анимацию скейла только для fallback
+            float targetScale = Mathf.Lerp(minScale, maxScale, clampedProgress);
+            if (progress > 1.0f) targetScale += Mathf.Sin(Time.time * 20f) * 0.1f;
+            _textRectTransform.localScale = Vector3.one * targetScale;
+            _textRectTransform.localRotation = Quaternion.identity;
         }
-
-        // Анимация скейла текста
-        float targetScale = Mathf.Lerp(minScale, maxScale, clampedProgress);
-        if (progress > 1.0f) targetScale += Mathf.Sin(Time.time * 20f) * 0.1f;
-        _textRectTransform.localScale = Vector3.one * targetScale;
-        _textRectTransform.localRotation = Quaternion.identity;
 
         // Цвет и хайлайты
         if (progress >= 1.0f)

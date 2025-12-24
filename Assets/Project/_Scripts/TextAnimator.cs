@@ -1,6 +1,6 @@
 // TextAnimator.cs
-// Royal Leech Text Animation System
-// Компактная система для анимации текста с typewriter эффектами
+// Royal Leech Ultimate Text Animation Constructor
+// Минимальный компонент - только ссылка на preset + runtime state
 
 using UnityEngine;
 using UnityEngine.Events;
@@ -8,65 +8,95 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
-/// Компонент для анимации текста с несколькими режимами.
-/// Поддерживает стандартный typewriter и distance-based анимацию.
+/// Состояния отдельной буквы.
+/// </summary>
+public enum LetterState
+{
+    Hidden,
+    Appearing,
+    Idle,
+    Active,
+    Selected,
+    Disappearing
+}
+
+/// <summary>
+/// Данные состояния одной буквы.
+/// </summary>
+[System.Serializable]
+public struct LetterData
+{
+    public LetterState state;
+    public float stateTime;
+    public float currentScale;
+    public float currentAlpha;
+    public Vector2 currentOffset;
+    public float currentRotation;
+    
+    public static LetterData Hidden => new LetterData
+    {
+        state = LetterState.Hidden,
+        stateTime = 0f,
+        currentScale = 0f,
+        currentAlpha = 0f,
+        currentOffset = Vector2.zero,
+        currentRotation = 0f
+    };
+}
+
+/// <summary>
+/// Компонент для per-letter анимации текста.
+/// ВСЕ настройки берутся из TextAnimatorPreset.
 /// </summary>
 [RequireComponent(typeof(TMP_Text))]
 public class TextAnimator : MonoBehaviour
 {
-    public enum AnimationMode
-    {
-        TimeBasedTypewriter,  // Классический typewriter (время)
-        DistanceBased         // Управление извне через SetProgress (расстояние/значение)
-    }
-
-    [Header("Animation Mode")]
-    public AnimationMode mode = AnimationMode.TimeBasedTypewriter;
+    [Header("Preset")]
+    [Tooltip("Пресет со всеми настройками и эффектами")]
+    public TextAnimatorPreset preset;
     
-    [Header("Time-Based Settings")]
-    [Tooltip("Количество символов в секунду")]
-    public float charactersPerSecond = 30f;
-    
-    [Tooltip("Задержка перед началом анимации (секунды)")]
-    public float delay = 0f;
-    
-    [Tooltip("Автоматически запустить анимацию при активации")]
-    public bool startOnEnable = false;
-    
-    [Header("Distance-Based Settings")]
-    [Tooltip("Скорость интерполяции для плавного появления/исчезновения символов")]
-    public float interpolationSpeed = 15f;
+    [Header("Runtime Progress")]
+    [Range(0f, 1f)]
+    public float progress = 0f;
     
     [Header("Events")]
     public UnityEvent<char> OnCharacterShown;
     public UnityEvent OnTextComplete;
     
-    // Приватные поля
+    // Components
     private TMP_Text _textComponent;
     private string _textToAnimate;
     private Coroutine _typewriterCoroutine;
     private bool _isAnimating;
     
-    // Distance-based режим
+    // Per-letter data
+    private LetterData[] _letterData;
+    private float _animationTime = 0f;
+    
+    // Distance-based
     private float _currentVisibleCharsFloat = 0f;
     private int _targetCharCount = 0;
-    private bool _wasMovingBack = false;
     private int _lastVisibleChars = 0;
     
-    /// <summary>
-    /// Проверка, идет ли сейчас анимация
-    /// </summary>
+    // Mesh cache
+    private TMP_MeshInfo[] _cachedMeshInfo;
+    
+    // Properties
     public bool IsAnimating => _isAnimating;
-    
-    /// <summary>
-    /// Текущий текст, который анимируется
-    /// </summary>
     public string CurrentText => _textToAnimate;
-    
-    /// <summary>
-    /// Текущее количество видимых символов (для distance-based режима)
-    /// </summary>
     public int VisibleCharacters => Mathf.FloorToInt(_currentVisibleCharsFloat);
+    
+    // Helpers to get settings from preset
+    private AnimationMode Mode => preset != null ? preset.mode : AnimationMode.TimeBasedTypewriter;
+    private bool EnableEffects => preset != null && preset.enableEffects;
+    private float CharactersPerSecond => preset != null ? preset.charactersPerSecond : 30f;
+    private float Delay => preset != null ? preset.delay : 0f;
+    private bool StartOnEnable => preset != null && preset.startOnEnable;
+    private float InterpolationSpeed => preset != null ? preset.interpolationSpeed : 15f;
+    private float AppearDuration => preset != null ? preset.appearDuration : 0.25f;
+    private float AppearStagger => preset != null ? preset.appearStagger : 0.03f;
+    private float DisappearDuration => preset != null ? preset.disappearDuration : 0.15f;
+    private float EffectSmoothSpeed => preset != null ? preset.effectSmoothSpeed : 15f;
 
     void Awake()
     {
@@ -75,7 +105,7 @@ public class TextAnimator : MonoBehaviour
 
     void OnEnable()
     {
-        if (mode == AnimationMode.TimeBasedTypewriter && startOnEnable && !string.IsNullOrEmpty(_textToAnimate))
+        if (Mode == AnimationMode.TimeBasedTypewriter && StartOnEnable && !string.IsNullOrEmpty(_textToAnimate))
         {
             StartWriter();
         }
@@ -83,7 +113,7 @@ public class TextAnimator : MonoBehaviour
 
     void OnDisable()
     {
-        if (mode == AnimationMode.TimeBasedTypewriter)
+        if (Mode == AnimationMode.TimeBasedTypewriter)
         {
             StopWriter();
         }
@@ -91,63 +121,115 @@ public class TextAnimator : MonoBehaviour
 
     void Update()
     {
-        // Distance-based режим обновляется здесь
-        if (mode == AnimationMode.DistanceBased)
+        _animationTime += Time.deltaTime;
+        
+        if (Mode == AnimationMode.DistanceBased)
         {
             UpdateDistanceBasedAnimation();
         }
+        
+        if (EnableEffects && _letterData != null)
+        {
+            UpdateLetterEffects();
+            ApplyMeshChanges();
+        }
     }
 
-    /// <summary>
-    /// Установить текст для анимации (не запускает автоматически для time-based)
-    /// </summary>
+    void LateUpdate()
+    {
+        if (EnableEffects && _letterData != null && _letterData.Length > 0)
+        {
+            ApplyMeshChanges();
+        }
+    }
+
+    #region Public API
+
     public void SetText(string text)
     {
         _textToAnimate = text;
         
-        if (mode == AnimationMode.TimeBasedTypewriter)
+        int charCount = string.IsNullOrEmpty(text) ? 0 : text.Length;
+        _letterData = new LetterData[charCount];
+        for (int i = 0; i < charCount; i++)
         {
-            // Останавливаем текущую анимацию если она идет
+            _letterData[i] = LetterData.Hidden;
+        }
+        
+        _textComponent.text = text;
+        _textComponent.maxVisibleCharacters = charCount;
+        _textComponent.ForceMeshUpdate();
+        
+        CacheMeshInfo();
+        
+        if (Mode == AnimationMode.TimeBasedTypewriter)
+        {
             if (_typewriterCoroutine != null)
             {
                 StopCoroutine(_typewriterCoroutine);
                 _typewriterCoroutine = null;
                 _isAnimating = false;
             }
-            
-            // Устанавливаем текст в компонент, но скрываем все символы
-            _textComponent.text = text;
             _textComponent.maxVisibleCharacters = 0;
         }
-        else if (mode == AnimationMode.DistanceBased)
+        else
         {
-            // Для distance-based сразу показываем текст, но скрываем символы
-            _textComponent.text = text;
-            _textComponent.maxVisibleCharacters = 0;
             _currentVisibleCharsFloat = 0f;
             _targetCharCount = 0;
-            _wasMovingBack = false;
         }
     }
 
-    #region Time-Based Typewriter Mode
+    public void SetProgress(float value)
+    {
+        progress = Mathf.Clamp01(value);
+    }
+    
+    public void SetIntensity(float value) => SetProgress(value);
 
-    /// <summary>
-    /// Запустить анимацию печати текста (time-based режим)
-    /// </summary>
+    public void SetTargetCharacterCount(int targetCount)
+    {
+        if (Mode != AnimationMode.DistanceBased) return;
+        _targetCharCount = Mathf.Clamp(targetCount, 0, _textToAnimate?.Length ?? 0);
+    }
+
+    public void ResetProgress()
+    {
+        _currentVisibleCharsFloat = 0f;
+        _targetCharCount = 0;
+        _lastVisibleChars = 0;
+        progress = 0f;
+        
+        if (_letterData != null)
+        {
+            for (int i = 0; i < _letterData.Length; i++)
+            {
+                _letterData[i] = LetterData.Hidden;
+            }
+        }
+        
+        if (_textComponent != null)
+        {
+            _textComponent.maxVisibleCharacters = 0;
+        }
+    }
+
+    public void SetTextAndStart(string text)
+    {
+        SetText(text);
+        if (Mode == AnimationMode.TimeBasedTypewriter)
+        {
+            StartWriter();
+        }
+    }
+
+    #endregion
+
+    #region Time-Based Typewriter
+
     public void StartWriter()
     {
-        if (mode != AnimationMode.TimeBasedTypewriter)
-        {
-            Debug.LogWarning("StartWriter() работает только в режиме TimeBasedTypewriter", this);
-            return;
-        }
-
-        if (string.IsNullOrEmpty(_textToAnimate))
-        {
-            Debug.LogWarning("TextAnimator: Нет текста для анимации. Используйте SetText() сначала.", this);
-            return;
-        }
+        if (Mode != AnimationMode.TimeBasedTypewriter) return;
+        if (string.IsNullOrEmpty(_textToAnimate)) return;
 
         if (_typewriterCoroutine != null)
         {
@@ -157,9 +239,6 @@ public class TextAnimator : MonoBehaviour
         _typewriterCoroutine = StartCoroutine(TypewriterCoroutine());
     }
 
-    /// <summary>
-    /// Остановить анимацию печати
-    /// </summary>
     public void StopWriter()
     {
         if (_typewriterCoroutine != null)
@@ -170,67 +249,47 @@ public class TextAnimator : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Мгновенно показать весь текст
-    /// </summary>
     public void SkipToEnd()
     {
         StopWriter();
-        if (_textComponent != null && !string.IsNullOrEmpty(_textToAnimate))
+        if (_letterData != null)
         {
+            for (int i = 0; i < _letterData.Length; i++)
+            {
+                _letterData[i].state = LetterState.Idle;
+                _letterData[i].currentAlpha = 1f;
+                _letterData[i].currentScale = 1f;
+            }
             _textComponent.maxVisibleCharacters = _textToAnimate.Length;
             OnTextComplete?.Invoke();
         }
-    }
-
-    /// <summary>
-    /// Перезапустить анимацию с начала
-    /// </summary>
-    public void RestartWriter()
-    {
-        StopWriter();
-        _textComponent.maxVisibleCharacters = 0;
-        StartWriter();
     }
 
     private IEnumerator TypewriterCoroutine()
     {
         _isAnimating = true;
         
-        if (delay > 0)
-        {
-            yield return new WaitForSeconds(delay);
-        }
+        if (Delay > 0) yield return new WaitForSeconds(Delay);
 
-        _textComponent.maxVisibleCharacters = 0;
         _textComponent.ForceMeshUpdate();
-        TMP_TextInfo textInfo = _textComponent.textInfo;
-        int totalCharacters = textInfo.characterCount;
+        int totalCharacters = _textComponent.textInfo.characterCount;
         
-        float timePerCharacter = 1f / charactersPerSecond;
-        float timer = 0f;
-        int currentVisibleChars = 0;
-
-        while (currentVisibleChars < totalCharacters)
+        for (int i = 0; i < totalCharacters; i++)
         {
-            timer += Time.deltaTime;
-            
-            while (timer >= timePerCharacter && currentVisibleChars < totalCharacters)
+            if (i < _letterData.Length)
             {
-                currentVisibleChars++;
-                _textComponent.maxVisibleCharacters = currentVisibleChars;
-                timer -= timePerCharacter;
+                _letterData[i].state = LetterState.Appearing;
+                _letterData[i].stateTime = 0f;
                 
-                if (currentVisibleChars > 0 && currentVisibleChars <= textInfo.characterCount)
-                {
-                    TMP_CharacterInfo charInfo = textInfo.characterInfo[currentVisibleChars - 1];
-                    char displayedChar = charInfo.character;
-                    OnCharacterShown?.Invoke(displayedChar);
-                }
+                OnCharacterShown?.Invoke(_textComponent.textInfo.characterInfo[i].character);
             }
             
-            yield return null;
+            _textComponent.maxVisibleCharacters = i + 1;
+            
+            yield return new WaitForSeconds(AppearStagger);
         }
+        
+        yield return new WaitForSeconds(AppearDuration);
         
         _isAnimating = false;
         _typewriterCoroutine = null;
@@ -239,142 +298,202 @@ public class TextAnimator : MonoBehaviour
 
     #endregion
 
-    #region Distance-Based Mode
-
-    /// <summary>
-    /// Установить целевое количество символов (distance-based режим)
-    /// Вызывайте каждый кадр с нужным значением
-    /// </summary>
-    public void SetTargetCharacterCount(int targetCount)
-    {
-        if (mode != AnimationMode.DistanceBased)
-        {
-            Debug.LogWarning("SetTargetCharacterCount() работает только в режиме DistanceBased", this);
-            return;
-        }
-
-        _targetCharCount = Mathf.Clamp(targetCount, 0, _textToAnimate != null ? _textToAnimate.Length : 0);
-    }
-
-    /// <summary>
-    /// Сбросить прогресс анимации (для distance-based режима)
-    /// </summary>
-    public void ResetProgress()
-    {
-        _currentVisibleCharsFloat = 0f;
-        _targetCharCount = 0;
-        _wasMovingBack = false;
-        _lastVisibleChars = 0;
-        if (_textComponent != null)
-        {
-            _textComponent.maxVisibleCharacters = 0;
-        }
-    }
+    #region Distance-Based
 
     private void UpdateDistanceBasedAnimation()
     {
-        if (string.IsNullOrEmpty(_textToAnimate)) return;
+        if (string.IsNullOrEmpty(_textToAnimate) || _letterData == null) return;
 
         int totalChars = _textToAnimate.Length;
         
-        // ДИНАМИЧЕСКАЯ ИНТЕРПОЛЯЦИЯ (ВПЕРЁД/НАЗАД)
-        if (_targetCharCount > _currentVisibleCharsFloat)
+        _currentVisibleCharsFloat = Mathf.MoveTowards(
+            _currentVisibleCharsFloat,
+            _targetCharCount,
+            Time.deltaTime * InterpolationSpeed
+        );
+        
+        int visibleChars = Mathf.Clamp(Mathf.FloorToInt(_currentVisibleCharsFloat), 0, totalChars);
+        
+        for (int i = 0; i < _letterData.Length; i++)
         {
-            // ВПЕРЁД
-            _wasMovingBack = false;
-            
-            _currentVisibleCharsFloat = Mathf.MoveTowards(
-                _currentVisibleCharsFloat,
-                _targetCharCount,
-                Time.deltaTime * interpolationSpeed
-            );
-        }
-        else if (_targetCharCount < _currentVisibleCharsFloat)
-        {
-            // НАЗАД
-            // "Грамотная отмена" - срабатывает только в момент СМЕНЫ направления на "назад"
-            if (!_wasMovingBack)
+            if (i < visibleChars)
             {
-                if (_currentVisibleCharsFloat % 1f > 0.001f)
+                if (_letterData[i].state == LetterState.Hidden || _letterData[i].state == LetterState.Disappearing)
                 {
-                    _currentVisibleCharsFloat = Mathf.Floor(_currentVisibleCharsFloat);
+                    _letterData[i].state = LetterState.Appearing;
+                    _letterData[i].stateTime = 0f;
+                    
+                    if (i > _lastVisibleChars - 1)
+                    {
+                        OnCharacterShown?.Invoke(_textToAnimate[i]);
+                    }
                 }
             }
-            
-            _wasMovingBack = true;
-
-            _currentVisibleCharsFloat = Mathf.MoveTowards(
-                _currentVisibleCharsFloat,
-                _targetCharCount,
-                Time.deltaTime * interpolationSpeed
-            );
-        }
-        else
-        {
-            // Стоим на месте
-            _wasMovingBack = false;
+            else
+            {
+                if (_letterData[i].state != LetterState.Hidden && _letterData[i].state != LetterState.Disappearing)
+                {
+                    _letterData[i].state = LetterState.Disappearing;
+                    _letterData[i].stateTime = 0f;
+                }
+            }
         }
         
-        int visibleChars = Mathf.FloorToInt(_currentVisibleCharsFloat);
-        visibleChars = Mathf.Clamp(visibleChars, 0, totalChars);
+        _lastVisibleChars = visibleChars;
+        _textComponent.maxVisibleCharacters = totalChars;
         
-        // Обновляем только если изменилось
-        if (visibleChars != _lastVisibleChars)
+        if (visibleChars >= totalChars && _targetCharCount >= totalChars)
         {
-            _textComponent.maxVisibleCharacters = visibleChars;
-            
-            // Обновляем отображаемый текст (substring для корректного отображения)
-            string displayText = visibleChars > 0 ? _textToAnimate.Substring(0, visibleChars) : "";
-            if (_textComponent.text != displayText)
-            {
-                _textComponent.text = displayText;
-            }
-            
-            // Вызываем событие при появлении нового символа
-            if (visibleChars > _lastVisibleChars && visibleChars > 0)
-            {
-                char newChar = _textToAnimate[visibleChars - 1];
-                OnCharacterShown?.Invoke(newChar);
-            }
-            
-            _lastVisibleChars = visibleChars;
-            
-            // Проверяем завершение
-            if (visibleChars >= totalChars && _targetCharCount >= totalChars)
-            {
-                OnTextComplete?.Invoke();
-            }
+            OnTextComplete?.Invoke();
         }
     }
 
     #endregion
 
-    /// <summary>
-    /// Установить текст и сразу запустить анимацию (time-based)
-    /// </summary>
-    public void SetTextAndStart(string text)
+    #region Per-Letter Effects
+
+    private void CacheMeshInfo()
     {
-        SetText(text);
-        if (mode == AnimationMode.TimeBasedTypewriter)
+        if (_textComponent == null) return;
+        
+        _textComponent.ForceMeshUpdate();
+        TMP_TextInfo textInfo = _textComponent.textInfo;
+        
+        if (textInfo?.meshInfo == null) return;
+        
+        _cachedMeshInfo = new TMP_MeshInfo[textInfo.meshInfo.Length];
+        for (int i = 0; i < textInfo.meshInfo.Length; i++)
         {
-            StartWriter();
+            _cachedMeshInfo[i].vertices = (Vector3[])textInfo.meshInfo[i].vertices.Clone();
+            _cachedMeshInfo[i].colors32 = (Color32[])textInfo.meshInfo[i].colors32.Clone();
         }
     }
 
-    #if UNITY_EDITOR
-    [Header("Debug Info (Read-only)")]
-    [SerializeField] private bool _debugIsAnimating;
-    [SerializeField] private int _debugVisibleChars;
-    [SerializeField] private int _debugTargetChars;
-    
-    void LateUpdate()
+    private void UpdateLetterEffects()
     {
-        if (Application.isPlaying)
+        if (_letterData == null || preset == null) return;
+        
+        float dt = Time.deltaTime;
+        
+        for (int i = 0; i < _letterData.Length; i++)
         {
-            _debugIsAnimating = _isAnimating;
-            _debugVisibleChars = _textComponent != null ? _textComponent.maxVisibleCharacters : 0;
-            _debugTargetChars = _targetCharCount;
+            ref LetterData letter = ref _letterData[i];
+            letter.stateTime += dt;
+            
+            EffectResult result = EffectResult.Identity;
+            
+            switch (letter.state)
+            {
+                case LetterState.Hidden:
+                    result.alpha = 0f;
+                    result.scale = 0f;
+                    break;
+                    
+                case LetterState.Appearing:
+                    float appearT = Mathf.Clamp01(letter.stateTime / AppearDuration);
+                    result = preset.CalculateAppear(_animationTime, i, appearT);
+                    
+                    if (appearT >= 1f)
+                    {
+                        letter.state = progress > 0.01f ? LetterState.Active : LetterState.Idle;
+                        letter.stateTime = 0f;
+                    }
+                    break;
+                    
+                case LetterState.Idle:
+                case LetterState.Active:
+                case LetterState.Selected:
+                    letter.state = progress >= 1f ? LetterState.Selected : 
+                                   (progress > 0.01f ? LetterState.Active : LetterState.Idle);
+                    result = preset.CalculateIdle(_animationTime, i, progress);
+                    break;
+                    
+                case LetterState.Disappearing:
+                    float disappearT = Mathf.Clamp01(letter.stateTime / DisappearDuration);
+                    result = preset.CalculateDisappear(_animationTime, i, disappearT);
+                    
+                    if (disappearT >= 1f)
+                    {
+                        letter.state = LetterState.Hidden;
+                        letter.stateTime = 0f;
+                    }
+                    break;
+            }
+            
+            // Interpolation
+            letter.currentScale = Mathf.MoveTowards(letter.currentScale, result.scale, dt * EffectSmoothSpeed);
+            letter.currentAlpha = Mathf.MoveTowards(letter.currentAlpha, result.alpha, dt * EffectSmoothSpeed);
+            letter.currentOffset = Vector2.MoveTowards(letter.currentOffset, result.offset, dt * EffectSmoothSpeed * 10f);
+            letter.currentRotation = Mathf.MoveTowards(letter.currentRotation, result.rotation, dt * EffectSmoothSpeed);
         }
     }
-    #endif
+
+    private void ApplyMeshChanges()
+    {
+        if (_textComponent == null || _letterData == null || _cachedMeshInfo == null) return;
+        
+        _textComponent.ForceMeshUpdate();
+        TMP_TextInfo textInfo = _textComponent.textInfo;
+        
+        if (textInfo == null || textInfo.characterCount == 0) return;
+        
+        for (int i = 0; i < textInfo.characterCount && i < _letterData.Length; i++)
+        {
+            TMP_CharacterInfo charInfo = textInfo.characterInfo[i];
+            if (!charInfo.isVisible) continue;
+            
+            int materialIndex = charInfo.materialReferenceIndex;
+            int vertexIndex = charInfo.vertexIndex;
+            
+            if (materialIndex >= textInfo.meshInfo.Length || materialIndex >= _cachedMeshInfo.Length) continue;
+            
+            Vector3[] sourceVertices = _cachedMeshInfo[materialIndex].vertices;
+            Vector3[] destVertices = textInfo.meshInfo[materialIndex].vertices;
+            Color32[] destColors = textInfo.meshInfo[materialIndex].colors32;
+            
+            if (vertexIndex + 3 >= destVertices.Length || vertexIndex + 3 >= sourceVertices.Length) continue;
+            
+            LetterData letter = _letterData[i];
+            
+            Vector3 center = (sourceVertices[vertexIndex] + sourceVertices[vertexIndex + 1] + 
+                             sourceVertices[vertexIndex + 2] + sourceVertices[vertexIndex + 3]) * 0.25f;
+            
+            float scale = letter.currentScale;
+            float rotation = letter.currentRotation * Mathf.Deg2Rad;
+            Vector3 offset = new Vector3(letter.currentOffset.x, letter.currentOffset.y, 0f);
+            
+            float cos = Mathf.Cos(rotation);
+            float sin = Mathf.Sin(rotation);
+            
+            for (int j = 0; j < 4; j++)
+            {
+                Vector3 vertex = sourceVertices[vertexIndex + j] - center;
+                vertex *= scale;
+                
+                float rotX = vertex.x * cos - vertex.y * sin;
+                float rotY = vertex.x * sin + vertex.y * cos;
+                vertex.x = rotX;
+                vertex.y = rotY;
+                
+                destVertices[vertexIndex + j] = vertex + center + offset;
+            }
+            
+            byte alpha = (byte)(letter.currentAlpha * 255f);
+            for (int j = 0; j < 4; j++)
+            {
+                Color32 c = destColors[vertexIndex + j];
+                c.a = alpha;
+                destColors[vertexIndex + j] = c;
+            }
+        }
+        
+        for (int i = 0; i < textInfo.meshInfo.Length; i++)
+        {
+            textInfo.meshInfo[i].mesh.vertices = textInfo.meshInfo[i].vertices;
+            textInfo.meshInfo[i].mesh.colors32 = textInfo.meshInfo[i].colors32;
+            _textComponent.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
+        }
+    }
+
+    #endregion
 }

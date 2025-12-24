@@ -415,24 +415,22 @@ public class Shadow : MonoBehaviour
         _shadowText.alignment = targetText.alignment;
         _shadowText.textWrappingMode = targetText.textWrappingMode;
         
-        // Проверяем наличие TextAnimator для корректной синхронизации видимых символов
+        // Проверяем наличие TextAnimator для корректной синхронизации per-letter эффектов
         TextAnimator textAnimator = targetText.GetComponent<TextAnimator>();
-        if (textAnimator != null && _shadowAnimator != null && !perCharacterShadow)
+        if (textAnimator != null)
         {
-            // ЛУЧШИЙ ПОДХОД: Копируем mesh data напрямую от оригинала
-            // Это гарантирует 100% синхронизацию, включая все эффекты TextAnimator
+            // NEW: Копируем ВСЕ mesh данные (vertices + colors) для полной синхронизации
+            // с per-letter эффектами TextAnimator (scale, rotation, offset, alpha)
             targetText.ForceMeshUpdate();
             _shadowText.ForceMeshUpdate();
             
-            // Копируем vertex data для точной синхронизации
             if (targetText.textInfo != null && _shadowText.textInfo != null)
             {
                 for (int i = 0; i < targetText.textInfo.meshInfo.Length; i++)
                 {
                     if (i >= _shadowText.textInfo.meshInfo.Length) break;
                     
-                    // Копируем только vertices для синхронизации видимости
-                    // (цвета не копируем, т.к. у тени свой цвет)
+                    // Копируем vertices (включая per-letter scale/rotation/offset)
                     var sourceVerts = targetText.textInfo.meshInfo[i].vertices;
                     var targetVerts = _shadowText.textInfo.meshInfo[i].vertices;
                     
@@ -441,10 +439,26 @@ public class Shadow : MonoBehaviour
                         int count = Mathf.Min(sourceVerts.Length, targetVerts.Length);
                         System.Array.Copy(sourceVerts, targetVerts, count);
                     }
+                    
+                    // NEW: Копируем alpha из colors32 для синхронизации прозрачности букв
+                    var sourceColors = targetText.textInfo.meshInfo[i].colors32;
+                    var targetColors = _shadowText.textInfo.meshInfo[i].colors32;
+                    
+                    if (sourceColors != null && targetColors != null)
+                    {
+                        int colorCount = Mathf.Min(sourceColors.Length, targetColors.Length);
+                        for (int c = 0; c < colorCount; c++)
+                        {
+                            // Сохраняем RGB тени, но берем alpha из оригинала
+                            Color32 shadowCol = targetColors[c];
+                            shadowCol.a = (byte)(sourceColors[c].a * (shadowColor.a));
+                            targetColors[c] = shadowCol;
+                        }
+                    }
                 }
                 
-                // Обновляем mesh с новыми вертексами
-                _shadowText.UpdateVertexData(TMP_VertexDataUpdateFlags.Vertices);
+                // Обновляем mesh с новыми данными
+                _shadowText.UpdateVertexData(TMP_VertexDataUpdateFlags.All);
             }
         }
         
