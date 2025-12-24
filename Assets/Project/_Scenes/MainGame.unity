@@ -276,9 +276,9 @@ MonoBehaviour:
   scaleReference: {fileID: 853034488}
   currentEffectiveIntensity: 5
   perCharacterShadow: 1
-  targetGraphic: {fileID: 0}
+  targetGraphic: {fileID: 101998757}
   targetSpriteRenderer: {fileID: 0}
-  targetText: {fileID: 0}
+  targetText: {fileID: 101998757}
 --- !u!1 &231931108
 GameObject:
   m_ObjectHideFlags: 0
@@ -1049,9 +1049,9 @@ MonoBehaviour:
   scaleReference: {fileID: 853034488}
   currentEffectiveIntensity: 5
   perCharacterShadow: 1
-  targetGraphic: {fileID: 0}
+  targetGraphic: {fileID: 646137486}
   targetSpriteRenderer: {fileID: 0}
-  targetText: {fileID: 0}
+  targetText: {fileID: 646137486}
 --- !u!114 &646137489
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1064,9 +1064,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3ee636aea20165e4c86e1608862e282d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TextAnimator
-  preset: {fileID: 11400000, guid: 44831507076dc7549b8a56206caa4965, type: 2}
+  preset: {fileID: 11400000, guid: d1c2336ae44fd8645a845045b8fcb9ef, type: 2}
   progress: 0
   OnCharacterShown:
+    m_PersistentCalls:
+      m_Calls: []
+  OnAllLettersDisappeared:
     m_PersistentCalls:
       m_Calls: []
   OnTextComplete:
@@ -1588,9 +1591,9 @@ MonoBehaviour:
   scaleReference: {fileID: 0}
   currentEffectiveIntensity: 5
   perCharacterShadow: 1
-  targetGraphic: {fileID: 0}
+  targetGraphic: {fileID: 1036642015}
   targetSpriteRenderer: {fileID: 0}
-  targetText: {fileID: 0}
+  targetText: {fileID: 1036642015}
 --- !u!114 &1036642019
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1606,6 +1609,9 @@ MonoBehaviour:
   preset: {fileID: 11400000, guid: 44831507076dc7549b8a56206caa4965, type: 2}
   progress: 0
   OnCharacterShown:
+    m_PersistentCalls:
+      m_Calls: []
+  OnAllLettersDisappeared:
     m_PersistentCalls:
       m_Calls: []
   OnTextComplete:
@@ -1982,9 +1988,9 @@ MonoBehaviour:
   scaleReference: {fileID: 0}
   currentEffectiveIntensity: 5
   perCharacterShadow: 1
-  targetGraphic: {fileID: 0}
+  targetGraphic: {fileID: 1505369103}
   targetSpriteRenderer: {fileID: 0}
-  targetText: {fileID: 0}
+  targetText: {fileID: 1505369103}
 --- !u!1 &1524703374
 GameObject:
   m_ObjectHideFlags: 0
