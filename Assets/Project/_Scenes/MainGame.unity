@@ -1064,20 +1064,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3ee636aea20165e4c86e1608862e282d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TextAnimator
-  mode: 0
-  charactersPerSecond: 30
-  delay: 0
-  startOnEnable: 0
-  interpolationSpeed: 15
+  preset: {fileID: 11400000, guid: 44831507076dc7549b8a56206caa4965, type: 2}
+  progress: 0
   OnCharacterShown:
     m_PersistentCalls:
       m_Calls: []
   OnTextComplete:
     m_PersistentCalls:
       m_Calls: []
-  _debugIsAnimating: 0
-  _debugVisibleChars: 0
-  _debugTargetChars: 0
 --- !u!1 &700920394
 GameObject:
   m_ObjectHideFlags: 0
@@ -1609,20 +1603,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3ee636aea20165e4c86e1608862e282d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TextAnimator
-  mode: 1
-  charactersPerSecond: 30
-  delay: 0
-  startOnEnable: 0
-  interpolationSpeed: 15
+  preset: {fileID: 11400000, guid: 44831507076dc7549b8a56206caa4965, type: 2}
+  progress: 0
   OnCharacterShown:
     m_PersistentCalls:
       m_Calls: []
   OnTextComplete:
     m_PersistentCalls:
       m_Calls: []
-  _debugIsAnimating: 0
-  _debugVisibleChars: 0
-  _debugTargetChars: 0
 --- !u!1 &1161021124
 GameObject:
   m_ObjectHideFlags: 0

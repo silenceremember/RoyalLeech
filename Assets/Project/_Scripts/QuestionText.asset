@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8a064b5de9435f44ba6877670473eb7e, type: 3}
-  m_Name: NewTextPreset
+  m_Name: QuestionText
   m_EditorClassIdentifier: Assembly-CSharp::TextAnimatorPreset
   appearDuration: 0.25
   appearStagger: 0.03
