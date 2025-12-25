@@ -12,8 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 399ccff3075a0da4c9a918dd952c2a0d, type: 3}
   m_Name: ClubsColorPreset
   m_EditorClassIdentifier: Assembly-CSharp::JuicyIconColorPreset
-  fillColor: {r: 0.2, g: 0.55, b: 0.3, a: 1}
-  backgroundColor: {r: 0.05, g: 0.15, b: 0.08, a: 1}
-  backgroundAlpha: 0.8
-  bubbleColor: {r: 0.4, g: 0.8, b: 0.5, a: 0.7}
-  glowColor: {r: 0.5, g: 0.9, b: 0.6, a: 1}
+  fillColor: {r: 0.3137255, g: 0.44705883, b: 0.85882354, a: 1}
+  backgroundColor: {r: 0.20784314, g: 0.2627451, b: 0.49019608, a: 1}
+  backgroundAlpha: 1
+  bubbleColor: {r: 0.5, g: 0.6, b: 0.9, a: 0.8}
+  glowColor: {r: 1, g: 0.85, b: 0.3, a: 1}
+  increaseColor: {r: 0.3, g: 0.95, b: 1, a: 1}
+  decreaseColor: {r: 0.15294118, g: 0, b: 0.078431375, a: 1}

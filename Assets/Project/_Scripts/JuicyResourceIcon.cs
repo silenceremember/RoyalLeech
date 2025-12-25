@@ -35,8 +35,7 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     
     [Header("Glow and Pulse")]
     [Range(0, 2)] public float glowIntensity = 0f;
-    [Range(0, 0.1f)] public float glowSize = 0.02f;
-    public float pulseSpeed = 2f;
+    public float pulseSpeed = 4f;
     [Range(0, 1)] public float pulseIntensity = 0f;
     
     // Colors from preset (with fallbacks)
@@ -45,17 +44,12 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     float BackgroundAlpha => colorPreset != null ? colorPreset.backgroundAlpha : 0.7f;
     Color BubbleColor => colorPreset != null ? colorPreset.bubbleColor : Color.white;
     Color GlowColor => colorPreset != null ? colorPreset.glowColor : Color.yellow;
+    Color IncreaseColor => colorPreset != null ? colorPreset.increaseColor : new Color(0.3f, 0.9f, 1f, 1f);
+    Color DecreaseColor => colorPreset != null ? colorPreset.decreaseColor : new Color(1f, 0.6f, 0.2f, 1f);
     
     [Header("Shake Effect")]
     [Range(0, 20)] public float shakeIntensity = 0f;
     public float shakeSpeed = 30f;
-    
-    [Header("Highlight Flash")]
-    public Color highlightColor = Color.white;
-    [Range(0, 1)] public float highlightIntensity = 0f;
-    
-    [Header("Color Tint")]
-    public Color tintOverlay = new Color(1, 1, 1, 0);
     
     [Header("Shadow")]
     public Color shadowColor = new Color(0, 0, 0, 0.5f);
@@ -102,6 +96,9 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     private Tween _previewPulseTween;
     private bool _isPreviewActive;
     
+    // Active effect color (switches between Increase/Decrease/Glow color)
+    private Color? _activeEffectColor = null;
+    
     // Idle and follow tracking
     private float _idleTime;
     private Vector2 _cardScreenPosition; // Card position in screen space for 3D look-at
@@ -128,14 +125,10 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     
     private static readonly int GlowColorID = Shader.PropertyToID("_GlowColor");
     private static readonly int GlowIntensityID = Shader.PropertyToID("_GlowIntensity");
-    private static readonly int GlowSizeID = Shader.PropertyToID("_GlowSize");
     private static readonly int PulseSpeedID = Shader.PropertyToID("_PulseSpeed");
     private static readonly int PulseIntensityID = Shader.PropertyToID("_PulseIntensity");
     private static readonly int ShakeIntensityID = Shader.PropertyToID("_ShakeIntensity");
     private static readonly int ShakeSpeedID = Shader.PropertyToID("_ShakeSpeed");
-    private static readonly int HighlightColorID = Shader.PropertyToID("_HighlightColor");
-    private static readonly int HighlightIntensityID = Shader.PropertyToID("_HighlightIntensity");
-    private static readonly int TintOverlayID = Shader.PropertyToID("_TintOverlay");
     private static readonly int ShadowColorID = Shader.PropertyToID("_ShadowColor");
     
     void Awake()
@@ -175,7 +168,37 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         // Idle animation
         _idleTime += Time.deltaTime;
         
+        // Auto glow when resource is critical (<=10% or >=90%)
+        UpdateCriticalGlow();
+        
         ApplyIdleAndFollowEffect();
+    }
+    
+    /// <summary>
+    /// Automatically enable glow when fillAmount is critical (<=10% or >=90%)
+    /// </summary>
+    void UpdateCriticalGlow()
+    {
+        bool isCritical = fillAmount <= 0.1f || fillAmount >= 0.9f;
+        
+        if (isCritical)
+        {
+            // Use GlowColor from preset for critical state
+            _activeEffectColor = GlowColor;
+            // Pulse the glow (0.03 to 0.07, centered around 0.05)
+            float pulse = 0.05f + Mathf.Sin(Time.time * pulseSpeed) * 0.02f;
+            glowIntensity = Mathf.Lerp(glowIntensity, pulse, Time.deltaTime * 5f);
+        }
+        else if (_activeEffectColor == GlowColor)
+        {
+            // Fade out glow if we were in critical state
+            glowIntensity = Mathf.Lerp(glowIntensity, 0f, Time.deltaTime * 5f);
+            if (glowIntensity < 0.01f)
+            {
+                glowIntensity = 0f;
+                _activeEffectColor = null;
+            }
+        }
     }
     
     void ApplyIdleAndFollowEffect()
@@ -421,23 +444,16 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         _materialInstance.SetFloat(SplashIntensityID, splashIntensity);
         _materialInstance.SetFloat(PixelDensityID, pixelDensity);
         
-        // Glow/Pulse
-        _materialInstance.SetColor(GlowColorID, GlowColor);
+        // Glow/Pulse (use active effect color if set, otherwise default GlowColor)
+        Color effectColor = _activeEffectColor ?? GlowColor;
+        _materialInstance.SetColor(GlowColorID, effectColor);
         _materialInstance.SetFloat(GlowIntensityID, glowIntensity);
-        _materialInstance.SetFloat(GlowSizeID, glowSize);
         _materialInstance.SetFloat(PulseSpeedID, pulseSpeed);
         _materialInstance.SetFloat(PulseIntensityID, pulseIntensity);
         
         // Shake
         _materialInstance.SetFloat(ShakeIntensityID, shakeIntensity);
         _materialInstance.SetFloat(ShakeSpeedID, shakeSpeed);
-        
-        // Highlight
-        _materialInstance.SetColor(HighlightColorID, highlightColor);
-        _materialInstance.SetFloat(HighlightIntensityID, highlightIntensity);
-        
-        // Tint
-        _materialInstance.SetColor(TintOverlayID, tintOverlay);
         
         // Shadow
         _materialInstance.SetColor(ShadowColorID, shadowColor);
@@ -578,14 +594,16 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     
     /// <summary>
     /// JUICY resource gain effect!
-    /// Flash + scale punch + glow burst + fill increase + LIQUID SPLASH!
+    /// Uses IncreaseColor from preset. Scale punch + glow burst + fill increase + LIQUID SPLASH!
+    /// Color does NOT depend on magnitude - always uses IncreaseColor.
     /// </summary>
-    public Sequence PlayGainEffect(float newFillAmount, Color? flashColor = null)
+    public Sequence PlayGainEffect(float newFillAmount)
     {
         _currentSequence?.Kill();
         _currentSequence = DOTween.Sequence();
         
-        Color flash = flashColor ?? new Color(0.5f, 1f, 0.5f, 1f); // Green flash
+        // Set effect color to IncreaseColor
+        _activeEffectColor = IncreaseColor;
         
         // LIQUID SPLASH!
         PlaySplash(0.8f, 0.5f);
@@ -594,13 +612,6 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         _currentSequence.Append(
             _rectTransform.DOPunchScale(Vector3.one * punchScale, flashDuration * 2, 1, 0.5f)
         );
-        
-        // Flash
-        _currentSequence.Join(
-            DOTween.To(() => highlightIntensity, x => highlightIntensity = x, 0.8f, flashDuration * 0.5f)
-                .SetEase(Ease.OutQuad)
-        );
-        highlightColor = flash;
         
         // Glow burst
         _currentSequence.Join(
@@ -611,60 +622,54 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         // Fill animation
         _currentSequence.Join(AnimateFillTo(newFillAmount));
         
-        // Fade out effects
+        // Fade out glow and reset color
         _currentSequence.Append(
-            DOTween.To(() => highlightIntensity, x => highlightIntensity = x, 0f, flashDuration)
-        );
-        _currentSequence.Join(
             DOTween.To(() => glowIntensity, x => glowIntensity = x, 0f, flashDuration * 2)
         );
+        _currentSequence.OnComplete(() => _activeEffectColor = null);
         
         return _currentSequence;
     }
     
     /// <summary>
     /// JUICY resource loss effect!
-    /// Red flash + shake + fill decrease + LIQUID SPLASH!
+    /// Uses DecreaseColor from preset. Shake + glow + fill decrease + LIQUID SPLASH!
+    /// Color does NOT depend on magnitude - always uses DecreaseColor.
     /// </summary>
-    public Sequence PlayLossEffect(float newFillAmount, Color? flashColor = null)
+    public Sequence PlayLossEffect(float newFillAmount)
     {
         _currentSequence?.Kill();
         _currentSequence = DOTween.Sequence();
         
-        Color flash = flashColor ?? new Color(1f, 0.3f, 0.3f, 1f); // Red flash
+        // Set effect color to DecreaseColor
+        _activeEffectColor = DecreaseColor;
         
         // LIQUID SPLASH!
         PlaySplash(1.0f, 0.6f);
         
-        // Shake (reduced to balance with punch)
+        // Shake
         _currentSequence.Append(
             DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 2.5f, shakeDuration * 0.3f)
                 .SetEase(Ease.OutQuad)
         );
         
-        // Flash
+        // Glow burst
         _currentSequence.Join(
-            DOTween.To(() => highlightIntensity, x => highlightIntensity = x, 0.6f, flashDuration * 0.5f)
+            DOTween.To(() => glowIntensity, x => glowIntensity = x, 1.2f, flashDuration)
                 .SetEase(Ease.OutQuad)
         );
-        highlightColor = flash;
-        
-        // Tint overlay
-        tintOverlay = new Color(flash.r, flash.g, flash.b, 0.3f);
         
         // Fill animation
         _currentSequence.Join(AnimateFillTo(newFillAmount, fillDuration * 0.7f));
         
-        // Fade out effects
+        // Fade out effects and reset color
         _currentSequence.Append(
             DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, shakeDuration)
         );
         _currentSequence.Join(
-            DOTween.To(() => highlightIntensity, x => highlightIntensity = x, 0f, flashDuration)
+            DOTween.To(() => glowIntensity, x => glowIntensity = x, 0f, flashDuration * 2)
         );
-        _currentSequence.Join(
-            DOTween.To(() => tintOverlay, x => tintOverlay = x, new Color(1, 1, 1, 0), flashDuration * 2)
-        );
+        _currentSequence.OnComplete(() => _activeEffectColor = null);
         
         return _currentSequence;
     }
@@ -689,14 +694,13 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     }
     
     /// <summary>
-    /// Quick highlight flash.
+    /// Quick glow burst effect (uses GlowColor from preset).
     /// </summary>
-    public Tween Flash(Color? color = null, float intensity = 0.7f)
+    public Tween GlowBurst(float intensity = 0.7f)
     {
-        highlightColor = color ?? Color.white;
-        highlightIntensity = intensity;
+        glowIntensity = intensity;
         
-        return DOTween.To(() => highlightIntensity, x => highlightIntensity = x, 0f, flashDuration)
+        return DOTween.To(() => glowIntensity, x => glowIntensity = x, 0f, flashDuration)
             .SetEase(Ease.OutQuad);
     }
     
@@ -741,12 +745,9 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     // === SIMPLE API (no animation) ===
     
     public void SetFill(float amount) => fillAmount = amount;
-    public void SetHighlight(float intensity) => highlightIntensity = intensity;
     public void SetPulse(float intensity) => pulseIntensity = intensity;
     public void SetGlowIntensity(float intensity) => glowIntensity = intensity;
     public void SetShake(float intensity) => shakeIntensity = intensity;
-    public void SetTint(Color color) => tintOverlay = color;
-    public void ClearTint() => tintOverlay = new Color(1, 1, 1, 0);
     
     // === LIQUID API ===
     
@@ -802,78 +803,21 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     }
     
     // =====================================================
-    // === MAGNITUDE-BASED JUICE (no gain/loss reveal) ===
+    // === SIMPLE EFFECT (no magnitude scaling) ===
     // =====================================================
     
     /// <summary>
-    /// Play magnitude-based effect - intensity scales with |delta|.
-    /// Doesn't reveal whether it's gain or loss, just how BIG the change is.
-    /// Uses neutral golden color.
+    /// Play effect for resource change - automatically picks IncreaseColor or DecreaseColor.
+    /// Effect intensity does NOT scale with magnitude.
     /// </summary>
     /// <param name="newFillAmount">Target fill 0-1</param>
-    /// <param name="magnitude">Absolute magnitude 0-100 (or whatever your max delta is)</param>
-    /// <param name="maxMagnitude">Max expected magnitude for scaling (default 30)</param>
-    public Sequence PlayMagnitudeEffect(float newFillAmount, float magnitude, float maxMagnitude = 30f)
+    /// <param name="isIncrease">True for gain, false for loss</param>
+    public Sequence PlayChangeEffect(float newFillAmount, bool isIncrease)
     {
-        _currentSequence?.Kill();
-        _currentSequence = DOTween.Sequence();
-        
-        // Normalize magnitude to 0-1 scale
-        float t = Mathf.Clamp01(magnitude / maxMagnitude);
-        
-        // Neutral golden color - doesn't reveal gain/loss
-        Color effectColor = new Color(1f, 0.85f, 0.4f, 1f);
-        
-        // === SCALE PUNCH (stronger with magnitude) ===
-        float punchAmount = Mathf.Lerp(0.05f, punchScale * 1.5f, t);
-        _currentSequence.Append(
-            _rectTransform.DOPunchScale(Vector3.one * punchAmount, flashDuration * 2f, 1, 0.5f)
-        );
-        
-        // === SHAKE (only for significant changes) ===
-        if (t > 0.2f)
-        {
-            float shakeAmount = Mathf.Lerp(0.5f, 3f, t);
-            _currentSequence.Join(
-                DOTween.To(() => shakeIntensity, x => shakeIntensity = x, shakeAmount, shakeDuration * 0.3f)
-                    .SetEase(Ease.OutQuad)
-            );
-        }
-        
-        // === GLOW (scales with magnitude) ===
-        float glowAmount = Mathf.Lerp(0.3f, 1.5f, t);
-        _currentSequence.Join(
-            DOTween.To(() => glowIntensity, x => glowIntensity = x, glowAmount, flashDuration)
-                .SetEase(Ease.OutQuad)
-        );
-        
-        // === HIGHLIGHT FLASH (subtle for small, strong for big) ===
-        float flashAmount = Mathf.Lerp(0.2f, 0.7f, t);
-        highlightColor = effectColor;
-        _currentSequence.Join(
-            DOTween.To(() => highlightIntensity, x => highlightIntensity = x, flashAmount, flashDuration * 0.5f)
-                .SetEase(Ease.OutQuad)
-        );
-        
-        // === FILL ANIMATION ===
-        // Duration also scales - big changes animate slightly faster (more dramatic)
-        float fillDur = Mathf.Lerp(fillDuration, fillDuration * 0.7f, t);
-        _currentSequence.Join(AnimateFillTo(newFillAmount, fillDur));
-        
-        // === FADE OUT ALL EFFECTS ===
-        float fadeTime = Mathf.Lerp(0.2f, 0.4f, t);
-        
-        _currentSequence.Append(
-            DOTween.To(() => highlightIntensity, x => highlightIntensity = x, 0f, fadeTime)
-        );
-        _currentSequence.Join(
-            DOTween.To(() => glowIntensity, x => glowIntensity = x, 0f, fadeTime * 1.5f)
-        );
-        _currentSequence.Join(
-            DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, fadeTime * 2f)
-        );
-        
-        return _currentSequence;
+        if (isIncrease)
+            return PlayGainEffect(newFillAmount);
+        else
+            return PlayLossEffect(newFillAmount);
     }
     
     /// <summary>
@@ -926,10 +870,8 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     
     public void ClearAllEffects()
     {
-        highlightIntensity = 0;
         pulseIntensity = 0;
         glowIntensity = 0;
         shakeIntensity = 0;
-        tintOverlay = new Color(1, 1, 1, 0);
     }
 }

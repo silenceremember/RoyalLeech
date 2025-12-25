@@ -27,20 +27,12 @@ Shader "Custom/JuicyResourceIcon"
         [Header(Glow and Pulse)]
         _GlowColor ("Glow Color", Color) = (1, 0.8, 0.2, 1)
         _GlowIntensity ("Glow Intensity", Range(0, 2)) = 0.0
-        _GlowSize ("Glow Size", Range(0, 0.1)) = 0.02
         _PulseSpeed ("Pulse Speed", Float) = 2.0
         _PulseIntensity ("Pulse Intensity", Range(0, 1)) = 0.0
         
         [Header(Shake Effect)]
         _ShakeIntensity ("Shake Intensity", Range(0, 20)) = 0.0
         _ShakeSpeed ("Shake Speed", Float) = 30.0
-        
-        [Header(Highlight Flash)]
-        _HighlightColor ("Highlight Color", Color) = (1, 1, 1, 1)
-        _HighlightIntensity ("Highlight Intensity", Range(0, 1)) = 0.0
-        
-        [Header(Color Tint)]
-        _TintOverlay ("Tint Overlay Color", Color) = (1, 1, 1, 0)
         
         [Header(Shadow)]
         [HideInInspector] _ShadowColor ("Shadow Color", Color) = (0, 0, 0, 0.5)
@@ -131,17 +123,12 @@ Shader "Custom/JuicyResourceIcon"
                 
                 float4 _GlowColor;
                 float _GlowIntensity;
-                float _GlowSize;
                 float _PulseSpeed;
                 float _PulseIntensity;
                 
                 float _ShakeIntensity;
                 float _ShakeSpeed;
                 
-                float4 _HighlightColor;
-                float _HighlightIntensity;
-                
-                float4 _TintOverlay;
                 float4 _ShadowColor;
             CBUFFER_END
             
@@ -303,29 +290,16 @@ Shader "Custom/JuicyResourceIcon"
                 result.rgb = lerp(background.rgb, filled.rgb, isFilled);
                 result.a = lerp(background.a, filled.a, isFilled);
                 
-                // Glow
+                // Glow (internal - does not extend beyond sprite bounds)
                 if (_GlowIntensity > 0.001)
                 {
-                    half edgeAlpha = 0;
-                    for (int i = 0; i < 8; i++)
-                    {
-                        float angle = i * 0.785398;
-                        float2 offset = float2(cos(angle), sin(angle)) * _GlowSize;
-                        edgeAlpha += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv + offset).a;
-                    }
-                    edgeAlpha /= 8.0;
-                    half glowMask = saturate(edgeAlpha - texColor.a * 0.5);
+                    // Simply add glow color to visible pixels
+                    float glowMask = texColor.a;
                     glowMask *= 1.0 + sin(time * _PulseSpeed) * _PulseIntensity * 0.5;
-                    result.rgb += _GlowColor.rgb * glowMask * _GlowIntensity;
-                    result.a = max(result.a, glowMask * _GlowIntensity * _GlowColor.a);
+                    result.rgb += _GlowColor.rgb * glowMask * _GlowIntensity * 0.5;
                 }
                 
-                if (_HighlightIntensity > 0.001)
-                    result.rgb = lerp(result.rgb, _HighlightColor.rgb, _HighlightIntensity);
-                
-                if (_TintOverlay.a > 0.001)
-                    result.rgb = lerp(result.rgb, _TintOverlay.rgb, _TintOverlay.a);
-                
+                // Pulse (color brightness oscillation)
                 if (_PulseIntensity > 0.001)
                     result.rgb *= 1.0 + sin(time * _PulseSpeed) * _PulseIntensity * 0.3;
                 
