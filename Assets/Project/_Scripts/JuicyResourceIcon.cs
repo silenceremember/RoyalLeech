@@ -13,11 +13,15 @@ using DG.Tweening;
 [ExecuteAlways]
 public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
 {
+    [Header("Color Preset")]
+    [Tooltip("Optional: assign a color preset to override colors")]
+    public JuicyIconColorPreset colorPreset;
+    
     [Header("Fill Effect")]
     [Range(0, 1)] public float fillAmount = 1f;
-    public Color fillColor = Color.white;
-    public Color backgroundColor = new Color(0.2f, 0.2f, 0.2f, 0.8f);
-    [Range(0, 1)] public float backgroundAlpha = 0.5f;
+    public Color fillColor = new Color(0.3f, 0.7f, 0.95f, 1f);  // Nice blue
+    public Color backgroundColor = new Color(0.1f, 0.15f, 0.25f, 1f);  // Dark blue
+    [Range(0, 1)] public float backgroundAlpha = 0.7f;
     public float fillWaveStrength = 0.02f;
     public float fillWaveSpeed = 3f;
     
@@ -26,6 +30,7 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     [Range(0, 1)] public float liquidTurbulence = 0f;         // Sharp waves (shake)
     [Range(0, 1)] public float bubbleIntensity = 0f;          // Bubbles (shake)
     [Range(0.05f, 0.2f)] public float bubbleSize = 0.1f;
+    public Color bubbleColor = new Color(0.7f, 0.9f, 1f, 0.8f);  // Light blue bubbles
     [Range(0, 1)] public float splashIntensity = 0f;          // Splash (choice)
     
     [Header("Pixelation")]
@@ -115,6 +120,7 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     private static readonly int LiquidTurbulenceID = Shader.PropertyToID("_LiquidTurbulence");
     private static readonly int BubbleIntensityID = Shader.PropertyToID("_BubbleIntensity");
     private static readonly int BubbleSizeID = Shader.PropertyToID("_BubbleSize");
+    private static readonly int BubbleColorID = Shader.PropertyToID("_BubbleColor");
     private static readonly int SplashIntensityID = Shader.PropertyToID("_SplashIntensity");
     private static readonly int PixelDensityID = Shader.PropertyToID("_PixelDensity");
     
@@ -146,8 +152,25 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         _baseScale = _rectTransform.localScale;
         _baseRotation = _rectTransform.localRotation;
         
+        // Apply color preset if assigned
+        ApplyColorPreset();
+        
         // Reset liquid to calm state on start
         ResetLiquidToCalm();
+    }
+    
+    /// <summary>
+    /// Apply colors from the color preset (if assigned)
+    /// </summary>
+    public void ApplyColorPreset()
+    {
+        if (colorPreset == null) return;
+        
+        fillColor = colorPreset.fillColor;
+        backgroundColor = colorPreset.backgroundColor;
+        backgroundAlpha = colorPreset.backgroundAlpha;
+        bubbleColor = colorPreset.bubbleColor;
+        glowColor = colorPreset.glowColor;
     }
     
     /// <summary>
@@ -409,6 +432,7 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         _materialInstance.SetFloat(LiquidTurbulenceID, liquidTurbulence);
         _materialInstance.SetFloat(BubbleIntensityID, bubbleIntensity);
         _materialInstance.SetFloat(BubbleSizeID, bubbleSize);
+        _materialInstance.SetColor(BubbleColorID, bubbleColor);
         _materialInstance.SetFloat(SplashIntensityID, splashIntensity);
         _materialInstance.SetFloat(PixelDensityID, pixelDensity);
         

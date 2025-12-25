@@ -23,31 +23,25 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
-    - _FluidTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     - _MainTex:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _BackgroundAlpha: 0.5
+    - _BackgroundAlpha: 0.7
     - _BubbleIntensity: 0
     - _BubbleSize: 0.1
     - _ColorMask: 15
     - _FillAmount: 1
-    - _FillWaveSpeed: 3
-    - _FillWaveStrength: 0.02
-    - _FluidSmoothness: 0.15
-    - _FluidThreshold: 0.4
+    - _FillWaveSpeed: 2
+    - _FillWaveStrength: 0.01
     - _GlowIntensity: 0
     - _GlowSize: 0.02
     - _HighlightIntensity: 0
     - _LiquidTurbulence: 0
     - _MeniscusStrength: 0.04
-    - _PixelDensity: 400
+    - _PixelDensity: 0
     - _PulseIntensity: 0
     - _PulseSpeed: 2
     - _ShakeIntensity: 0
@@ -58,12 +52,11 @@ Material:
     - _StencilOp: 0
     - _StencilReadMask: 255
     - _StencilWriteMask: 255
-    - _UseFluidSim: 0
     m_Colors:
-    - _BackgroundColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 0.8}
+    - _BackgroundColor: {r: 0.09999997, g: 0.14999998, b: 0.24999997, a: 1}
+    - _BubbleColor: {r: 0.7, g: 0.9, b: 1, a: 0.8}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _EmptyColor: {r: 0.29999998, g: 0.29999998, b: 0.29999998, a: 1}
-    - _FillColor: {r: 1, g: 1, b: 1, a: 1}
+    - _FillColor: {r: 0.29999998, g: 0.7, b: 0.95, a: 1}
     - _GlowColor: {r: 1, g: 0.8, b: 0.19999996, a: 1}
     - _HighlightColor: {r: 1, g: 1, b: 1, a: 1}
     - _ShadowColor: {r: 0, g: 0, b: 0, a: 0.5}

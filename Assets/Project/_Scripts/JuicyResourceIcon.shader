@@ -7,9 +7,9 @@ Shader "Custom/JuicyResourceIcon"
         
         [Header(Fill Effect)]
         _FillAmount ("Fill Amount", Range(0, 1)) = 1.0
-        _FillColor ("Fill Tint", Color) = (1,1,1,1)
-        _BackgroundColor ("Background Color", Color) = (0.2, 0.2, 0.2, 0.8)
-        _BackgroundAlpha ("Background Alpha", Range(0, 1)) = 0.5
+        _FillColor ("Fill Color", Color) = (0.3, 0.7, 0.95, 1)
+        _BackgroundColor ("Background Color", Color) = (0.1, 0.15, 0.25, 1)
+        _BackgroundAlpha ("Background Alpha", Range(0, 1)) = 0.7
         _FillWaveStrength ("Wave Strength", Range(0, 0.1)) = 0.01
         _FillWaveSpeed ("Wave Speed", Float) = 2.0
         
@@ -18,6 +18,7 @@ Shader "Custom/JuicyResourceIcon"
         _LiquidTurbulence ("Turbulence", Range(0, 1)) = 0.0
         _BubbleIntensity ("Bubbles", Range(0, 1)) = 0.0
         _BubbleSize ("Bubble Size", Range(0.05, 0.2)) = 0.1
+        _BubbleColor ("Bubble Color", Color) = (0.7, 0.9, 1.0, 0.8)
         _SplashIntensity ("Splash", Range(0, 1)) = 0.0
         
         [Header(Pixelation)]
@@ -124,6 +125,7 @@ Shader "Custom/JuicyResourceIcon"
                 float _LiquidTurbulence;
                 float _BubbleIntensity;
                 float _BubbleSize;
+                float4 _BubbleColor;
                 float _SplashIntensity;
                 float _PixelDensity;
                 
@@ -283,9 +285,9 @@ Shader "Custom/JuicyResourceIcon"
                 half4 background = half4(_BackgroundColor.rgb, texColor.a * _BackgroundAlpha);
                 half4 filled = texColor * _FillColor;
                 
-                // Bubbles (use pixelated UV)
+                // Bubbles with color
                 float bubbles = getBubbles(pixelUV, fillLine, time);
-                filled.rgb += bubbles * 0.6;
+                filled.rgb = lerp(filled.rgb, _BubbleColor.rgb, bubbles * _BubbleColor.a);
                 
                 // Surface glow line (skip when pixelated for cleaner look)
                 if (!pixelated)
