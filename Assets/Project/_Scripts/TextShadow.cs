@@ -6,11 +6,10 @@ using TMPro;
 /// Duplicates text geometry for shadow - same approach as ShaderShadow for Image.
 /// Shadow vertices are marked with UV1.x=1 and rendered behind main text.
 /// 
-/// IMPORTANT: Runs AFTER TextAnimator (execution order 100) to pick up animated vertices.
+/// Uses Canvas.willRenderCanvases to apply shadow at the very last moment.
 /// </summary>
 [RequireComponent(typeof(TMP_Text))]
 [ExecuteAlways]
-[DefaultExecutionOrder(100)] // Run after TextAnimator
 public class TextShadow : MonoBehaviour
 {
     [Header("Shadow Settings")]
@@ -40,6 +39,7 @@ public class TextShadow : MonoBehaviour
     
     // Our own mesh instance (separate from TMP's internal mesh)
     private Mesh _shadowMesh;
+    private bool _isSubscribed;
     
     private static readonly int ShadowColorID = Shader.PropertyToID("_ShadowColor");
     
@@ -57,8 +57,30 @@ public class TextShadow : MonoBehaviour
         _lastScale = GetCurrentScale();
     }
     
+    void OnEnable()
+    {
+        // Subscribe to canvas render event - this fires AFTER all LateUpdates
+        Canvas.willRenderCanvases += OnWillRenderCanvases;
+        _isSubscribed = true;
+    }
+    
+    void OnDisable()
+    {
+        if (_isSubscribed)
+        {
+            Canvas.willRenderCanvases -= OnWillRenderCanvases;
+            _isSubscribed = false;
+        }
+    }
+    
     void OnDestroy()
     {
+        if (_isSubscribed)
+        {
+            Canvas.willRenderCanvases -= OnWillRenderCanvases;
+            _isSubscribed = false;
+        }
+        
         if (_shadowMesh != null)
         {
             if (Application.isPlaying)
@@ -98,14 +120,13 @@ public class TextShadow : MonoBehaviour
             {
                 CreateMaterialInstance();
             }
-            else
-            {
-                return;
-            }
         }
         
         // Update shadow color
-        _materialInstance.SetColor(ShadowColorID, shadowColor);
+        if (_materialInstance != null)
+        {
+            _materialInstance.SetColor(ShadowColorID, shadowColor);
+        }
         
         // Calculate effective intensity
         currentEffectiveIntensity = intensity;
@@ -119,8 +140,13 @@ public class TextShadow : MonoBehaviour
         
         // Calculate shadow direction
         currentShadowOffset = CalculateShadowDirection() * currentEffectiveIntensity;
+    }
+    
+    // This fires AFTER all LateUpdate calls, right before Canvas renders
+    void OnWillRenderCanvases()
+    {
+        if (_tmpText == null || !enabled || !gameObject.activeInHierarchy) return;
         
-        // Always apply mesh - we need to pick up TextAnimator's changes
         ApplyShadowMesh();
     }
     
@@ -158,8 +184,7 @@ public class TextShadow : MonoBehaviour
     {
         if (_tmpText == null || _shadowMesh == null) return;
         
-        // Read from the MESH directly (after TextAnimator has modified it via UpdateGeometry)
-        // This mesh contains the animated vertex positions
+        // Read CURRENT mesh state (after all TextAnimator modifications)
         Mesh tmpMesh = _tmpText.mesh;
         if (tmpMesh == null || tmpMesh.vertexCount == 0) return;
         
@@ -169,7 +194,7 @@ public class TextShadow : MonoBehaviour
         int[] srcTris = tmpMesh.triangles;
         
         int srcVertCount = srcVerts.Length;
-        if (srcVertCount == 0) return;
+        if (srcVertCount == 0 || srcUV0 == null || srcColors == null) return;
         
         // Calculate offset in local space
         Vector3 offset = new Vector3(currentShadowOffset.x, currentShadowOffset.y, 0);
@@ -226,7 +251,7 @@ public class TextShadow : MonoBehaviour
         _shadowMesh.colors32 = newColors;
         _shadowMesh.triangles = newTris;
         
-        // Replace what canvasRenderer displays with our shadow mesh
+        // Set our mesh for rendering - this happens RIGHT BEFORE canvas renders
         _tmpText.canvasRenderer.SetMesh(_shadowMesh);
     }
     
