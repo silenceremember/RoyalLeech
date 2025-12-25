@@ -293,8 +293,8 @@ public class GameManager : MonoBehaviour
         
         if (magnitude > 0 && swipeProgress > 0.1f)
         {
-            // Magnitude + progress based preview - SHAKE ONLY, no color
-            icon.PlayHighlightPreview(magnitude, swipeProgress);
+            // Preview effect - intensity based only on swipeProgress, not magnitude
+            icon.PlayHighlightPreview(swipeProgress);
         }
         else
         {

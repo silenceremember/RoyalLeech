@@ -9,7 +9,7 @@ Shader "RoyalLeech/UI/LiquidFill"
         _FillAmount ("Fill Amount", Range(0, 1)) = 1.0
         _FillColor ("Fill Color", Color) = (0.3, 0.7, 0.95, 1)
         _BackgroundColor ("Background Color", Color) = (0.1, 0.15, 0.25, 1)
-        _BackgroundAlpha ("Background Alpha", Range(0, 1)) = 0.7
+        _BackgroundAlpha ("Background Blend (0=black, 1=color)", Range(0, 1)) = 0.7
         _FillWaveStrength ("Wave Strength", Range(0, 0.1)) = 0.01
         _FillWaveSpeed ("Wave Speed", Float) = 2.0
         
@@ -269,7 +269,10 @@ Shader "RoyalLeech/UI/LiquidFill"
                     isFilled = smoothstep(fillLine + 0.012, fillLine - 0.012, uv.y);
                 }
                 
-                half4 background = half4(_BackgroundColor.rgb, texColor.a * _BackgroundAlpha);
+                // Background: черный цвет ВИДИМЫЙ, BackgroundAlpha контролирует смешивание
+                // (более низкая alpha = более темный/черный фон, более высокая = ближе к textured)
+                half3 bgColor = lerp(half3(0,0,0), _BackgroundColor.rgb, _BackgroundAlpha);
+                half4 background = half4(bgColor, texColor.a); // Полная непрозрачность в границах спрайта
                 half4 filled = texColor * _FillColor;
                 
                 // Bubbles with color
@@ -288,7 +291,7 @@ Shader "RoyalLeech/UI/LiquidFill"
                 
                 half4 result;
                 result.rgb = lerp(background.rgb, filled.rgb, isFilled);
-                result.a = lerp(background.a, filled.a, isFilled);
+                result.a = texColor.a; // Альфа всегда из текстуры (границы спрайта)
                 
                 // Glow (internal - does not extend beyond sprite bounds)
                 if (_GlowIntensity > 0.001)

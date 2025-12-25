@@ -821,27 +821,25 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     /// <summary>
     /// Preview/highlight effect for when player is hovering/dragging.
     /// Shows that this resource WILL change via SHAKE + LIQUID AGITATION!
-    /// Intensity scales with both magnitude AND proximity to decision.
+    /// Intensity depends only on swipeProgress (proximity to decision).
     /// </summary>
-    /// <param name="magnitude">How big the change will be (|delta|)</param>
     /// <param name="swipeProgress">How close to making the decision (0-1)</param>
-    /// <param name="maxMagnitude">Max expected magnitude for scaling</param>
-    public void PlayHighlightPreview(float magnitude, float swipeProgress = 1f, float maxMagnitude = 30f)
+    public void PlayHighlightPreview(float swipeProgress = 1f)
     {
         _previewGlowTween?.Kill();
         _previewPulseTween?.Kill();
         
         _isPreviewActive = true;
         
-        float magnitudeT = Mathf.Clamp01(magnitude / maxMagnitude);
-        float t = magnitudeT * swipeProgress;
+        // Intensity based only on swipe progress (0 = far, 1 = at threshold)
+        float t = Mathf.Clamp01(swipeProgress);
         
-        // Shake
-        shakeIntensity = Mathf.Lerp(0.1f, 3f, t);
+        // Shake - always visible when previewing
+        shakeIntensity = Mathf.Lerp(0.5f, 3f, t);
         
         // Liquid agitation - turbulence + bubbles
-        liquidTurbulence = Mathf.Lerp(0f, 0.8f, t);
-        bubbleIntensity = Mathf.Lerp(0f, 0.4f, t);
+        liquidTurbulence = Mathf.Lerp(0.2f, 0.8f, t);
+        bubbleIntensity = Mathf.Lerp(0.1f, 0.4f, t);
     }
     
     /// <summary>
