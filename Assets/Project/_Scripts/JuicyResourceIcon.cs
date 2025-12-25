@@ -21,6 +21,13 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     public float fillWaveStrength = 0.02f;
     public float fillWaveSpeed = 3f;
     
+    [Header("Liquid Effects")]
+    [Range(0, 0.15f)] public float meniscusStrength = 0.04f;  // Edge curve (always on)
+    [Range(0, 1)] public float liquidTurbulence = 0f;         // Sharp waves (shake)
+    [Range(0, 1)] public float bubbleIntensity = 0f;          // Bubbles (shake)
+    [Range(0.05f, 0.2f)] public float bubbleSize = 0.1f;
+    [Range(0, 1)] public float splashIntensity = 0f;          // Splash (choice)
+    
     [Header("Glow and Pulse")]
     public Color glowColor = new Color(1f, 0.8f, 0.2f, 1f);
     [Range(0, 2)] public float glowIntensity = 0f;
@@ -98,6 +105,14 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     private static readonly int BackgroundAlphaID = Shader.PropertyToID("_BackgroundAlpha");
     private static readonly int FillWaveStrengthID = Shader.PropertyToID("_FillWaveStrength");
     private static readonly int FillWaveSpeedID = Shader.PropertyToID("_FillWaveSpeed");
+    
+    // Liquid IDs
+    private static readonly int MeniscusStrengthID = Shader.PropertyToID("_MeniscusStrength");
+    private static readonly int LiquidTurbulenceID = Shader.PropertyToID("_LiquidTurbulence");
+    private static readonly int BubbleIntensityID = Shader.PropertyToID("_BubbleIntensity");
+    private static readonly int BubbleSizeID = Shader.PropertyToID("_BubbleSize");
+    private static readonly int SplashIntensityID = Shader.PropertyToID("_SplashIntensity");
+    
     private static readonly int GlowColorID = Shader.PropertyToID("_GlowColor");
     private static readonly int GlowIntensityID = Shader.PropertyToID("_GlowIntensity");
     private static readonly int GlowSizeID = Shader.PropertyToID("_GlowSize");
@@ -125,6 +140,19 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         _idleTime = Random.Range(0f, 100f);
         _baseScale = _rectTransform.localScale;
         _baseRotation = _rectTransform.localRotation;
+        
+        // Reset liquid to calm state on start
+        ResetLiquidToCalm();
+    }
+    
+    /// <summary>
+    /// Instantly reset all liquid effects to calm (no animation)
+    /// </summary>
+    void ResetLiquidToCalm()
+    {
+        liquidTurbulence = 0f;
+        bubbleIntensity = 0f;
+        splashIntensity = 0f;
     }
     
     void Update()
@@ -371,6 +399,13 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         _materialInstance.SetFloat(FillWaveStrengthID, fillWaveStrength);
         _materialInstance.SetFloat(FillWaveSpeedID, fillWaveSpeed);
         
+        // Liquid Effects
+        _materialInstance.SetFloat(MeniscusStrengthID, meniscusStrength);
+        _materialInstance.SetFloat(LiquidTurbulenceID, liquidTurbulence);
+        _materialInstance.SetFloat(BubbleIntensityID, bubbleIntensity);
+        _materialInstance.SetFloat(BubbleSizeID, bubbleSize);
+        _materialInstance.SetFloat(SplashIntensityID, splashIntensity);
+        
         // Glow/Pulse
         _materialInstance.SetColor(GlowColorID, glowColor);
         _materialInstance.SetFloat(GlowIntensityID, glowIntensity);
@@ -528,7 +563,7 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     
     /// <summary>
     /// JUICY resource gain effect!
-    /// Flash + scale punch + glow burst + fill increase.
+    /// Flash + scale punch + glow burst + fill increase + LIQUID SPLASH!
     /// </summary>
     public Sequence PlayGainEffect(float newFillAmount, Color? flashColor = null)
     {
@@ -536,6 +571,9 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         _currentSequence = DOTween.Sequence();
         
         Color flash = flashColor ?? new Color(0.5f, 1f, 0.5f, 1f); // Green flash
+        
+        // LIQUID SPLASH!
+        PlaySplash(0.8f, 0.5f);
         
         // Scale punch
         _currentSequence.Append(
@@ -572,7 +610,7 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     
     /// <summary>
     /// JUICY resource loss effect!
-    /// Red flash + shake + fill decrease.
+    /// Red flash + shake + fill decrease + LIQUID SPLASH!
     /// </summary>
     public Sequence PlayLossEffect(float newFillAmount, Color? flashColor = null)
     {
@@ -580,6 +618,9 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         _currentSequence = DOTween.Sequence();
         
         Color flash = flashColor ?? new Color(1f, 0.3f, 0.3f, 1f); // Red flash
+        
+        // LIQUID SPLASH!
+        PlaySplash(1.0f, 0.6f);
         
         // Shake (reduced to balance with punch)
         _currentSequence.Append(
@@ -697,6 +738,59 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     public void SetTint(Color color) => tintOverlay = color;
     public void ClearTint() => tintOverlay = new Color(1, 1, 1, 0);
     
+    // === LIQUID API ===
+    
+    public void SetLiquidTurbulence(float value) => liquidTurbulence = Mathf.Clamp01(value);
+    public void SetBubbleIntensity(float value) => bubbleIntensity = Mathf.Clamp01(value);
+    public void SetSplashIntensity(float value) => splashIntensity = Mathf.Clamp01(value);
+    
+    private Tween _turbulenceTween;
+    private Tween _splashTween;
+    
+    /// <summary>
+    /// SPLASH effect on choice! Central bump with spreading waves.
+    /// Turns OFF turbulence, turns ON splash.
+    /// </summary>
+    public Sequence PlaySplash(float intensity = 1f, float duration = 0.6f)
+    {
+        Sequence splash = DOTween.Sequence();
+        
+        float targetSplash = 0.5f + intensity * 0.5f; // Strong splash!
+        
+        // Kill turbulence immediately, start splash
+        splash.Append(DOTween.To(() => liquidTurbulence, x => liquidTurbulence = x, 0f, duration * 0.1f));
+        splash.Join(DOTween.To(() => bubbleIntensity, x => bubbleIntensity = x, 0f, duration * 0.15f));
+        splash.Join(DOTween.To(() => splashIntensity, x => splashIntensity = x, targetSplash, duration * 0.08f).SetEase(Ease.OutQuad));
+        
+        // Splash fades out slowly
+        splash.Append(DOTween.To(() => splashIntensity, x => splashIntensity = x, 0f, duration * 0.9f).SetEase(Ease.InOutSine));
+        
+        return splash;
+    }
+    
+    /// <summary>
+    /// Agitation during shake/preview - turbulence + bubbles.
+    /// </summary>
+    public void SetLiquidAgitation(float agitation)
+    {
+        agitation = Mathf.Clamp01(agitation);
+        liquidTurbulence = Mathf.Lerp(0f, 0.8f, agitation);
+        bubbleIntensity = Mathf.Lerp(0f, 0.5f, agitation);
+    }
+    
+    /// <summary>
+    /// Reset liquid to calm (no turbulence, no bubbles, no splash).
+    /// </summary>
+    public void CalmLiquid(float duration = 0.3f)
+    {
+        _turbulenceTween?.Kill();
+        _splashTween?.Kill();
+        
+        _turbulenceTween = DOTween.To(() => liquidTurbulence, x => liquidTurbulence = x, 0f, duration);
+        DOTween.To(() => bubbleIntensity, x => bubbleIntensity = x, 0f, duration);
+        DOTween.To(() => splashIntensity, x => splashIntensity = x, 0f, duration);
+    }
+    
     // =====================================================
     // === MAGNITUDE-BASED JUICE (no gain/loss reveal) ===
     // =====================================================
@@ -775,7 +869,7 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     
     /// <summary>
     /// Preview/highlight effect for when player is hovering/dragging.
-    /// Shows that this resource WILL change via SHAKE ONLY - no color hints!
+    /// Shows that this resource WILL change via SHAKE + LIQUID AGITATION!
     /// Intensity scales with both magnitude AND proximity to decision.
     /// </summary>
     /// <param name="magnitude">How big the change will be (|delta|)</param>
@@ -783,27 +877,20 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
     /// <param name="maxMagnitude">Max expected magnitude for scaling</param>
     public void PlayHighlightPreview(float magnitude, float swipeProgress = 1f, float maxMagnitude = 30f)
     {
-        // Kill any fade-out tweens
         _previewGlowTween?.Kill();
         _previewPulseTween?.Kill();
         
         _isPreviewActive = true;
         
-        // Normalize magnitude (how big the change is)
         float magnitudeT = Mathf.Clamp01(magnitude / maxMagnitude);
+        float t = magnitudeT * swipeProgress;
         
-        // Combine: shake intensity = magnitude * swipeProgress
-        // Far from center (progress=0.3) = light shake
-        // Close to choice (progress=1.0) = full shake
-        float combinedIntensity = magnitudeT * swipeProgress;
+        // Shake
+        shakeIntensity = Mathf.Lerp(0.1f, 3f, t);
         
-        // SHAKE ONLY - no glow or pulse (no color hints!)
-        // Range: 0.2 (barely visible) to 4 (intense shaking)
-        shakeIntensity = Mathf.Lerp(0.2f, 4f, combinedIntensity);
-        
-        // NO GLOW - we don't want to reveal anything by color
-        // glowIntensity stays at 0
-        // pulseIntensity stays at 0
+        // Liquid agitation - turbulence + bubbles
+        liquidTurbulence = Mathf.Lerp(0f, 0.8f, t);
+        bubbleIntensity = Mathf.Lerp(0f, 0.4f, t);
     }
     
     /// <summary>
@@ -823,6 +910,9 @@ public class JuicyResourceIcon : MonoBehaviour, IMeshModifier
         
         // Fade out shake
         DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, 0.15f);
+        
+        // Calm liquid back to idle state
+        CalmLiquid(0.3f);
     }
     
     public void ClearAllEffects()
