@@ -17,7 +17,7 @@ public enum AnimationMode
 /// Пресет для анимации текста.
 /// Содержит ВСЕ настройки: режим, тайминги, эффекты.
 /// </summary>
-[CreateAssetMenu(fileName = "NewTextPreset", menuName = "Royal Leech/Text Animator Preset")]
+[CreateAssetMenu(fileName = "NewTextPreset", menuName = "Game/Text Animator Preset")]
 public class TextAnimatorPreset : ScriptableObject
 {
     [Header("=== MODE ===")]

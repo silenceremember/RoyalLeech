@@ -4,7 +4,7 @@ using UnityEngine;
 /// Color preset for resource icons.
 /// Create one for each card suit to define colors for fill, background, bubbles, and effects.
 /// </summary>
-[CreateAssetMenu(fileName = "NewIconColorPreset", menuName = "RoyalLeech/Icon Color Preset")]
+[CreateAssetMenu(fileName = "NewIconColorPreset", menuName = "Game/Icon Color Preset")]
 public class IconColorPreset : ScriptableObject
 {
     [Header("Main Colors")]
