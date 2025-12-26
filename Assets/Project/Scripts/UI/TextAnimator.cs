@@ -375,7 +375,18 @@ public class TextAnimator : MonoBehaviour
         
         // Сбрасываем explosion состояние для обычного пропадания
         _isExploding = false;
-        _explosionEndTime = 0f;
+        
+        // Устанавливаем время окончания анимации для Return/Selected
+        // чтобы флаги не сбрасывались до завершения disappear
+        if (_isFastDisappearing && preset != null)
+        {
+            float disappearDuration = preset.GetDisappearDuration(mode);
+            _explosionEndTime = Time.time + disappearDuration + 0.05f; // небольшой буфер
+        }
+        else
+        {
+            _explosionEndTime = 0f;
+        }
         
         for (int i = 0; i < _letterData.Length; i++)
         {
@@ -804,6 +815,14 @@ public class TextAnimator : MonoBehaviour
             {
                 if (_letterData[i].state != LetterState.Hidden && !isDisappearing)
                 {
+                    // Сохраняем текущие значения для кроссфейда
+                    _letterData[i].prevScale = _letterData[i].currentScale;
+                    _letterData[i].prevAlpha = _letterData[i].currentAlpha;
+                    _letterData[i].prevOffset = _letterData[i].currentOffset;
+                    _letterData[i].prevRotation = _letterData[i].currentRotation;
+                    _letterData[i].previousState = _letterData[i].state;
+                    _letterData[i].transitionProgress = 0f;
+                    
                     // При обычном свайпе используем Normal режим
                     _letterData[i].state = LetterState.DisappearingNormal;
                     _letterData[i].stateTime = 0f;
@@ -895,6 +914,12 @@ public class TextAnimator : MonoBehaviour
                     float disappearDuration = preset.GetDisappearDuration(mode);
                     float disappearT = Mathf.Clamp01(letter.stateTime / disappearDuration);
                     result = preset.CalculateDisappear(_animationTime, i, disappearT, mode);
+                    
+                    // ОБЯЗАТЕЛЬНО применяем fade alpha на основе прогресса disappear
+                    // Если effects содержит Fade - оно применится через CalculateDisappear
+                    // Но мы всё равно умножаем на (1 - disappearT) чтобы гарантировать исчезновение
+                    result.alpha *= (1f - disappearT);
+                    result.scale *= Mathf.Lerp(1f, 0f, disappearT * disappearT); // scale тоже уменьшается
                     
                     // Для Selected и Return disappear: сохраняем позиции из предыдущего состояния
                     // Буквы должны исчезать "на месте", а не выстраиваться в линию
