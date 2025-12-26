@@ -197,20 +197,21 @@ public class GameManager : MonoBehaviour
         if (icon == null) return;
         
         float newFill = newValue / 100f;
+        int absDelta = Mathf.Abs(delta);
         
         if (delta > 0)
         {
-            // GAIN - Green flash + punch + glow (REVEAL!)
-            icon.PlayGainEffect(newFill);
+            // GAIN - punch + glow (minor or major based on delta)
+            icon.PlayGainEffect(newFill, absDelta);
         }
         else if (delta < 0)
         {
-            // LOSS - Red flash + shake (REVEAL!)
-            icon.PlayLossEffect(newFill);
+            // LOSS - shake + shrink punch (minor or major based on delta)
+            icon.PlayLossEffect(newFill, absDelta);
         }
         else
         {
-            // Нет изменения - просто обновляем fill
+            // No change - just animate fill
             icon.AnimateFillTo(newFill);
         }
         
@@ -292,8 +293,8 @@ public class GameManager : MonoBehaviour
         
         if (magnitude > 0 && swipeProgress > 0.1f)
         {
-            // Preview effect - intensity based only on swipeProgress, not magnitude
-            icon.PlayHighlightPreview(swipeProgress);
+            // Preview effect - intensity based on swipeProgress AND magnitude (Minor/Normal/Major)
+            icon.PlayHighlightPreview(swipeProgress, magnitude);
         }
         else
         {

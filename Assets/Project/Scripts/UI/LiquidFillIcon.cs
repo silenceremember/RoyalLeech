@@ -43,23 +43,18 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     float IncreaseStrength => effectPreset != null ? effectPreset.increaseStrength : 0.5f;
     float DecreaseStrength => effectPreset != null ? effectPreset.decreaseStrength : 0.5f;
     float GlowStrength => effectPreset != null ? effectPreset.glowStrength : 0.5f;
-    float PulseSpeed => effectPreset != null ? effectPreset.pulseSpeed : 4f;
-    float GainEffectIntensity => effectPreset != null ? effectPreset.gainEffectIntensity : 1f;
-    float GainPulseIntensity => effectPreset != null ? effectPreset.gainPulseIntensity : 0.6f;
     float GainSplashIntensity => effectPreset != null ? effectPreset.gainSplashIntensity : 1f;
-    float GainSplashDuration => effectPreset != null ? effectPreset.gainSplashDuration : 0.6f;
-    float LossEffectIntensity => effectPreset != null ? effectPreset.lossEffectIntensity : 1f;
-    float LossPulseIntensity => effectPreset != null ? effectPreset.lossPulseIntensity : 0.5f;
-    float LossShakeIntensity => effectPreset != null ? effectPreset.lossShakeIntensity : 5f;
     float LossSplashIntensity => effectPreset != null ? effectPreset.lossSplashIntensity : 1.2f;
-    float LossSplashDuration => effectPreset != null ? effectPreset.lossSplashDuration : 0.7f;
-    float FillDuration => effectPreset != null ? effectPreset.fillDuration : 0.5f;
-    Ease FillEase => effectPreset != null ? effectPreset.fillEase : Ease.OutBack;
-    float FlashDuration => effectPreset != null ? effectPreset.flashDuration : 0.15f;
-    float ShakeDuration => effectPreset != null ? effectPreset.shakeDuration : 0.3f;
-    float PunchScale => effectPreset != null ? effectPreset.punchScale : 0.2f;
-    float EffectHoldDuration => effectPreset != null ? effectPreset.effectHoldDuration : 0.2f;
-    float EffectFadeDuration => effectPreset != null ? effectPreset.effectFadeDuration : 0.5f;
+    float LossShakeIntensity => effectPreset != null ? effectPreset.lossShakeIntensity : 5f;
+    float IncreasePunchScale => effectPreset != null ? effectPreset.increasePunchScale : 0.2f;
+    float DecreasePunchScale => effectPreset != null ? effectPreset.decreasePunchScale : 0.15f;
+    int MinorThreshold => effectPreset != null ? effectPreset.minorThreshold : 3;
+    int MajorThreshold => effectPreset != null ? effectPreset.majorThreshold : 10;
+    float MinorMultiplier => effectPreset != null ? effectPreset.minorMultiplier : 0.5f;
+    float MajorMultiplier => effectPreset != null ? effectPreset.majorMultiplier : 1.5f;
+    float EffectDuration => effectPreset != null ? effectPreset.effectDuration : 0.8f;
+    float PulseSpeed => effectPreset != null ? effectPreset.pulseSpeed : 4f;
+    float PreviewShakeBase => effectPreset != null ? effectPreset.previewShakeBase : 5f;
     bool EnableIdleAnimation => effectPreset != null ? effectPreset.enableIdleAnimation : true;
     float IdleRotationAmount => effectPreset != null ? effectPreset.idleRotationAmount : 2f;
     float IdleScaleAmount => effectPreset != null ? effectPreset.idleScaleAmount : 0.02f;
@@ -69,7 +64,6 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     float FollowSpeed => effectPreset != null ? effectPreset.followSpeed : 8f;
     Color ShadowColor => effectPreset != null ? effectPreset.shadowColor : new Color(0, 0, 0, 0.5f);
     float ShadowIntensity => effectPreset != null ? effectPreset.shadowIntensity : 5f;
-    float ShakeSpeed => effectPreset != null ? effectPreset.shakeSpeed : 30f;
     float CriticalLowThreshold => effectPreset != null ? effectPreset.criticalLowThreshold : 0.1f;
     float CriticalHighThreshold => effectPreset != null ? effectPreset.criticalHighThreshold : 0.9f;
     
@@ -449,7 +443,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         
         // Shake
         _materialInstance.SetFloat(ShakeIntensityID, shakeIntensity);
-        _materialInstance.SetFloat(ShakeSpeedID, ShakeSpeed);
+        _materialInstance.SetFloat(ShakeSpeedID, 30f); // hardcoded shake speed
         
         // Shadow
         _materialInstance.SetColor(ShadowColorID, ShadowColor);
@@ -579,11 +573,11 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     /// </summary>
     public Tween AnimateFillTo(float targetFill, float duration = -1)
     {
-        if (duration < 0) duration = FillDuration;
+        if (duration < 0) duration = EffectDuration * 0.5f;
         
         _fillTween?.Kill();
         _fillTween = DOTween.To(() => fillAmount, x => fillAmount = x, targetFill, duration)
-            .SetEase(FillEase);
+            .SetEase(Ease.OutBack);
         
         return _fillTween;
     }
@@ -592,39 +586,49 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     /// JUICY resource gain effect!
     /// Uses effectIntensity > 0 to ADD white. Scale punch + fill increase + LIQUID SPLASH!
     /// </summary>
-    public Sequence PlayGainEffect(float newFillAmount)
+    /// <param name="newFillAmount">Target fill amount</param>
+    /// <param name="delta">Amount changed (used to determine minor/major effect)</param>
+    public Sequence PlayGainEffect(float newFillAmount, int delta = 100)
     {
         _currentSequence?.Kill();
         _currentSequence = DOTween.Sequence();
         
-        // LIQUID SPLASH!
-        PlaySplash(GainSplashIntensity, GainSplashDuration);
+        // Determine effect tier: Minor / Normal / Major
+        int absDelta = Mathf.Abs(delta);
+        float multiplier;
+        if (absDelta <= MinorThreshold)
+            multiplier = MinorMultiplier;      // Minor effect
+        else if (absDelta > MajorThreshold)
+            multiplier = MajorMultiplier;      // Major effect
+        else
+            multiplier = 1f;                   // Normal effect
         
-        // Reset glow to avoid conflict, it will restore from UpdateCriticalGlow if needed
+        // Timing derived from effectDuration
+        float punchDur = EffectDuration * 0.4f;
+        float fillDur = EffectDuration * 0.5f;
+        float fadeDur = EffectDuration * 0.5f;
+        
+        // LIQUID SPLASH (scaled by multiplier)
+        PlaySplash(GainSplashIntensity * multiplier, EffectDuration);
+        
+        // Reset glow
         glowIntensity = 0f;
         _isCriticalGlowActive = false;
         
-        // Immediately set strong effect (ADD white) + pulse for instant visibility
-        effectIntensity = GainEffectIntensity;
-        pulseIntensity = GainPulseIntensity;
+        // Set effect intensity (scaled by multiplier)
+        effectIntensity = 1f * multiplier;
         
-        // Scale punch (bigger)
+        // Scale punch - positive = grow (scaled by multiplier)
         _currentSequence.Append(
-            _rectTransform.DOPunchScale(Vector3.one * PunchScale * 1.5f, FlashDuration * 3, 2, 0.5f)
+            _rectTransform.DOPunchScale(Vector3.one * IncreasePunchScale * multiplier, punchDur, 2, 0.5f)
         );
         
         // Fill animation
-        _currentSequence.Join(AnimateFillTo(newFillAmount));
+        _currentSequence.Join(AnimateFillTo(newFillAmount, fillDur));
         
-        // Hold effect for a moment, then fade
-        _currentSequence.AppendInterval(EffectHoldDuration);
-        
-        // Fade out effect and pulse
+        // Fade out effect
         _currentSequence.Append(
-            DOTween.To(() => effectIntensity, x => effectIntensity = x, 0f, EffectFadeDuration).SetEase(Ease.InOutQuad)
-        );
-        _currentSequence.Join(
-            DOTween.To(() => pulseIntensity, x => pulseIntensity = x, 0f, EffectFadeDuration * 0.8f)
+            DOTween.To(() => effectIntensity, x => effectIntensity = x, 0f, fadeDur).SetEase(Ease.OutQuad)
         );
         
         return _currentSequence;
@@ -633,44 +637,61 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     /// <summary>
     /// JUICY resource loss effect!
     /// Uses effectIntensity < 0 to SUBTRACT (darken). Shake + fill decrease + LIQUID SPLASH!
+    /// Punch is NEGATIVE (shrink) for loss!
     /// </summary>
-    public Sequence PlayLossEffect(float newFillAmount)
+    /// <param name="newFillAmount">Target fill amount</param>
+    /// <param name="delta">Amount changed (absolute value used to determine minor/major effect)</param>
+    public Sequence PlayLossEffect(float newFillAmount, int delta = 100)
     {
         _currentSequence?.Kill();
         _currentSequence = DOTween.Sequence();
         
-        // LIQUID SPLASH!
-        PlaySplash(LossSplashIntensity, LossSplashDuration);
+        // Determine effect tier: Minor / Normal / Major
+        int absDelta = Mathf.Abs(delta);
+        float multiplier;
+        if (absDelta <= MinorThreshold)
+            multiplier = MinorMultiplier;      // Minor effect
+        else if (absDelta > MajorThreshold)
+            multiplier = MajorMultiplier;      // Major effect
+        else
+            multiplier = 1f;                   // Normal effect
         
-        // Reset glow to avoid conflict, it will restore from UpdateCriticalGlow if needed
+        // Timing derived from effectDuration
+        float shakeDur = EffectDuration * 0.4f;
+        float punchDur = EffectDuration * 0.4f;
+        float fillDur = EffectDuration * 0.5f;
+        float fadeDur = EffectDuration * 0.5f;
+        
+        // LIQUID SPLASH (scaled by multiplier)
+        PlaySplash(LossSplashIntensity * multiplier, EffectDuration);
+        
+        // Reset glow
         glowIntensity = 0f;
         _isCriticalGlowActive = false;
         
-        // Immediately set strong effect (SUBTRACT/darken) + pulse + shake for instant visibility
-        effectIntensity = -LossEffectIntensity;
-        pulseIntensity = LossPulseIntensity;
-        shakeIntensity = LossShakeIntensity;
+        // Set effect intensity (negative = darken, scaled by multiplier)
+        effectIntensity = -1f * multiplier;
+        shakeIntensity = LossShakeIntensity * multiplier;
         
-        // Strong shake burst
+        // Scale punch - NEGATIVE = shrink (scaled by multiplier)
         _currentSequence.Append(
-            _rectTransform.DOShakePosition(ShakeDuration, 8f, 20, 90f, false, true)
+            _rectTransform.DOPunchScale(Vector3.one * -DecreasePunchScale * multiplier, punchDur, 2, 0.5f)
+        );
+        
+        // Shake - always play, scaled by multiplier (base intensity 15f for visibility)
+        _currentSequence.Join(
+            _rectTransform.DOShakePosition(shakeDur, 15f * multiplier, 20, 90f, false, true)
         );
         
         // Fill animation
-        _currentSequence.Join(AnimateFillTo(newFillAmount, FillDuration * 0.6f));
-        
-        // Hold for visibility
-        _currentSequence.AppendInterval(EffectHoldDuration * 0.75f);
+        _currentSequence.Join(AnimateFillTo(newFillAmount, fillDur));
         
         // Fade out effects
         _currentSequence.Append(
-            DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, EffectFadeDuration * 0.8f)
+            DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, fadeDur * 0.8f)
         );
         _currentSequence.Join(
-            DOTween.To(() => effectIntensity, x => effectIntensity = x, 0f, EffectFadeDuration).SetEase(Ease.InOutQuad)
-        );
-        _currentSequence.Join(
-            DOTween.To(() => pulseIntensity, x => pulseIntensity = x, 0f, EffectFadeDuration * 0.8f)
+            DOTween.To(() => effectIntensity, x => effectIntensity = x, 0f, fadeDur).SetEase(Ease.OutQuad)
         );
         
         return _currentSequence;
@@ -702,17 +723,17 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     {
         glowIntensity = intensity;
         
-        return DOTween.To(() => glowIntensity, x => glowIntensity = x, 0f, FlashDuration)
+        return DOTween.To(() => glowIntensity, x => glowIntensity = x, 0f, EffectDuration * 0.3f)
             .SetEase(Ease.OutQuad);
     }
     
     /// <summary>
-    /// Punch scale effect.
+    /// Punch scale effect (uses IncreasePunchScale by default).
     /// </summary>
     public Tween DoPunchScale(float scale = -1)
     {
-        if (scale < 0) scale = PunchScale;
-        return _rectTransform.DOPunchScale(Vector3.one * scale, FlashDuration * 2, 1, 0.5f);
+        if (scale < 0) scale = IncreasePunchScale;
+        return _rectTransform.DOPunchScale(Vector3.one * scale, EffectDuration * 0.4f, 1, 0.5f);
     }
     
     /// <summary>
@@ -720,7 +741,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     /// </summary>
     public Tween Shake(float intensity = 10f, float duration = -1)
     {
-        if (duration < 0) duration = ShakeDuration;
+        if (duration < 0) duration = EffectDuration * 0.4f;
         
         _shakeTween?.Kill();
         shakeIntensity = intensity;
@@ -825,25 +846,37 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     /// <summary>
     /// Preview/highlight effect for when player is hovering/dragging.
     /// Shows that this resource WILL change via SHAKE + LIQUID AGITATION!
-    /// Intensity depends only on swipeProgress (proximity to decision).
+    /// Intensity depends on swipeProgress AND delta (Minor/Normal/Major system).
     /// </summary>
     /// <param name="swipeProgress">How close to making the decision (0-1)</param>
-    public void PlayHighlightPreview(float swipeProgress = 1f)
+    /// <param name="delta">Expected change amount (used for Minor/Normal/Major tier)</param>
+    public void PlayHighlightPreview(float swipeProgress = 1f, int delta = 100)
     {
         _previewGlowTween?.Kill();
         _previewPulseTween?.Kill();
         
         _isPreviewActive = true;
         
-        // Intensity based only on swipe progress (0 = far, 1 = at threshold)
+        // Determine effect tier: Minor / Normal / Major
+        int absDelta = Mathf.Abs(delta);
+        float tierMultiplier;
+        if (absDelta <= MinorThreshold)
+            tierMultiplier = MinorMultiplier;      // Minor effect
+        else if (absDelta > MajorThreshold)
+            tierMultiplier = MajorMultiplier;      // Major effect
+        else
+            tierMultiplier = 1f;                   // Normal effect
+        
+        // Intensity based on swipe progress (0 = far, 1 = at threshold)
         float t = Mathf.Clamp01(swipeProgress);
         
-        // Shake - always visible when previewing
-        shakeIntensity = Mathf.Lerp(0.5f, 3f, t);
+        // Shake - interpolates from 0 to PreviewShakeBase, then scaled by tier
+        float baseShake = Mathf.Lerp(0f, PreviewShakeBase, t);
+        shakeIntensity = baseShake * tierMultiplier;
         
-        // Liquid agitation - turbulence + bubbles
-        liquidTurbulence = Mathf.Lerp(0.2f, 0.8f, t);
-        bubbleIntensity = Mathf.Lerp(0.1f, 0.4f, t);
+        // Liquid agitation - turbulence + bubbles (also scaled by tier)
+        liquidTurbulence = Mathf.Lerp(0.2f, 0.8f, t) * tierMultiplier;
+        bubbleIntensity = Mathf.Lerp(0.1f, 0.4f, t) * tierMultiplier;
     }
     
     /// <summary>

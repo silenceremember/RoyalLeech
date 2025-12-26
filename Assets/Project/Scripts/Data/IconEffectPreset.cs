@@ -3,81 +3,67 @@ using DG.Tweening;
 
 /// <summary>
 /// Effect preset for resource icons.
-/// Contains all animation, effect, and behavior settings.
-/// Shared across all icons for consistent behavior.
+/// Minimal settings for visual tuning.
 /// </summary>
 [CreateAssetMenu(fileName = "IconEffectPreset", menuName = "Game/Icon Effect Preset")]
 public class IconEffectPreset : ScriptableObject
 {
-    [Header("Fill Effect")]
+    [Header("Liquid Visuals")]
     public float fillWaveStrength = 0.02f;
     public float fillWaveSpeed = 3f;
-    
-    [Header("Liquid Effects")]
     [Range(0, 0.15f)] public float meniscusStrength = 0.04f;
     [Range(0.05f, 0.2f)] public float bubbleSize = 0.1f;
-    
-    [Header("Pixelation")]
     [Tooltip("0 = off, 32-128 = pixelated")]
     public float pixelDensity = 0f;
     
     [Header("Effect Strength")]
-    [Tooltip("Multiplier for INCREASE effect (lighten towards white)")]
-    [Range(0, 2)] public float increaseStrength = 0.5f;
+    [Tooltip("Lighten strength on GAIN")]
+    [Range(0, 1)] public float increaseStrength = 0.5f;
     
-    [Tooltip("Multiplier for DECREASE effect (darken towards black)")]
-    [Range(0, 2)] public float decreaseStrength = 0.5f;
+    [Tooltip("Darken strength on LOSS")]
+    [Range(0, 1)] public float decreaseStrength = 0.5f;
     
-    [Tooltip("Multiplier for glow effect")]
-    [Range(0, 2)] public float glowStrength = 0.5f;
+    [Tooltip("Darken strength on critical glow")]
+    [Range(0, 1)] public float glowStrength = 0.5f;
     
-    [Tooltip("Pulse speed for effects")]
+    [Tooltip("Splash intensity on GAIN")]
+    [Range(0, 2)] public float gainSplashIntensity = 1.0f;
+    
+    [Tooltip("Splash intensity on LOSS")]
+    [Range(0, 2)] public float lossSplashIntensity = 1.2f;
+    
+    [Tooltip("Shake intensity on LOSS")]
+    [Range(0, 15)] public float lossShakeIntensity = 5f;
+    
+    [Tooltip("Scale punch intensity on GAIN (positive = grow)")]
+    [Range(0, 0.5f)] public float increasePunchScale = 0.2f;
+    
+    [Tooltip("Scale punch intensity on LOSS (shrink effect)")]
+    [Range(0, 0.5f)] public float decreasePunchScale = 0.15f;
+    
+    [Header("Effect Tiers (Minor / Normal / Major)")]
+    [Tooltip("Delta <= this = Minor effect")]
+    [Range(1, 10)] public int minorThreshold = 3;
+    
+    [Tooltip("Delta > minorThreshold and <= this = Normal effect. Delta > this = Major effect")]
+    [Range(5, 30)] public int majorThreshold = 10;
+    
+    [Tooltip("Multiplier for Minor effects (e.g. 0.5 = 50% of Normal)")]
+    [Range(0.2f, 0.9f)] public float minorMultiplier = 0.5f;
+    
+    [Tooltip("Multiplier for Major effects (e.g. 1.5 = 150% of Normal)")]
+    [Range(1.1f, 2f)] public float majorMultiplier = 1.5f;
+    
+    [Header("Timing")]
+    [Tooltip("Total effect duration (fill, flash, fade all fit within this)")]
+    public float effectDuration = 0.8f;
+    
+    [Tooltip("Speed of pulse and glow animations")]
     public float pulseSpeed = 4f;
     
-    [Header("Gain Effect (Increase)")]
-    [Tooltip("Effect intensity for resource GAIN (0-1)")]
-    [Range(0, 1)] public float gainEffectIntensity = 1.0f;
-    
-    [Tooltip("Pulse intensity during gain")]
-    [Range(0, 1)] public float gainPulseIntensity = 0.6f;
-    
-    [Tooltip("Splash intensity during gain")]
-    [Range(0, 2)] public float gainSplashIntensity = 1.0f;
-    public float gainSplashDuration = 0.6f;
-    
-    [Header("Loss Effect (Decrease)")]
-    [Tooltip("Effect intensity for resource LOSS (0-1)")]
-    [Range(0, 1)] public float lossEffectIntensity = 1.0f;
-    
-    [Tooltip("Pulse intensity during loss")]
-    [Range(0, 1)] public float lossPulseIntensity = 0.5f;
-    
-    [Tooltip("Shake intensity during loss")]
-    [Range(0, 10)] public float lossShakeIntensity = 5f;
-    
-    [Tooltip("Splash intensity during loss")]
-    [Range(0, 2)] public float lossSplashIntensity = 1.2f;
-    public float lossSplashDuration = 0.7f;
-    
-    [Header("Animation Timing")]
-    [Tooltip("Duration for fill animations")]
-    public float fillDuration = 0.5f;
-    public Ease fillEase = Ease.OutBack;
-    
-    [Tooltip("Duration for highlight/flash")]
-    public float flashDuration = 0.15f;
-    
-    [Tooltip("Duration for shake")]
-    public float shakeDuration = 0.3f;
-    
-    [Tooltip("Scale punch intensity")]
-    [Range(0, 0.5f)] public float punchScale = 0.2f;
-    
-    [Tooltip("Hold duration before fade")]
-    public float effectHoldDuration = 0.2f;
-    
-    [Tooltip("Fade out duration")]
-    public float effectFadeDuration = 0.5f;
+    [Header("Preview Effect (when hovering over choice)")]
+    [Tooltip("Base shake intensity for preview (0 = min shake when far, this value = max shake at threshold)")]
+    [Range(1, 20)] public float previewShakeBase = 5f;
     
     [Header("Idle Animation")]
     public bool enableIdleAnimation = true;
@@ -94,13 +80,7 @@ public class IconEffectPreset : ScriptableObject
     public Color shadowColor = new Color(0, 0, 0, 0.5f);
     public float shadowIntensity = 5f;
     
-    [Header("Shake")]
-    public float shakeSpeed = 30f;
-    
-    [Header("Critical Glow (activates when fillAmount is at threshold)")]
-    [Tooltip("Fill threshold for critical state (low)")]
-    [Range(0, 0.5f)] public float criticalLowThreshold = 0.1f;
-    
-    [Tooltip("Fill threshold for critical state (high)")]
-    [Range(0.5f, 1f)] public float criticalHighThreshold = 0.9f;
+    [Header("Critical Glow")]
+    [Range(0, 0.3f)] public float criticalLowThreshold = 0.1f;
+    [Range(0.7f, 1f)] public float criticalHighThreshold = 0.9f;
 }
