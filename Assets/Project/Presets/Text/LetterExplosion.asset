@@ -12,16 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f3a8e1c2b4d5f6a7890123456789abcd, type: 3}
   m_Name: LetterExplosion
   m_EditorClassIdentifier: Assembly-CSharp::LetterExplosionPreset
-  flightDuration: 0.5
+  flightDuration: 0.7
   flightDurationRandomness: 0.1
-  staggerDelay: 0.015
-  explosionForce: 80
+  explosionForce: 300
   explosionAngleRandomness: 30
   arcHeight: 30
   arcRandomness: 0.2
   arcSideOffset: 20
-  initialScale: 1.1
-  finalScale: 0.3
+  initialScale: 1.2
+  finalScale: 0.6
   rotationSpeed: 540
   randomRotationDirection: 1
   positionCurve:
@@ -105,6 +104,3 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  arrivalGlowBurst: 0.4
-  arrivalPunchScale: 0.08
-  arrivalSplash: 0.25

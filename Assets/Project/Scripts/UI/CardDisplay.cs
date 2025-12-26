@@ -475,6 +475,12 @@ public class CardDisplay : MonoBehaviour
     void TriggerWobbleUnlock()
     {
         _safetyLock = false; 
+        
+        // Очищаем текст после взрыва - теперь игрок разблокировал карту!
+        if (actionAnimator != null)
+        {
+            actionAnimator.ClearExplosionText();
+        }
 
         // 1. ОПРЕДЕЛЯЕМ НАПРАВЛЕНИЕ
         float mouseX = 0f;

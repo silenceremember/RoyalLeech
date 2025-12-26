@@ -151,9 +151,14 @@ public class TextAnimator : MonoBehaviour
     // Explosion completion callback
     private System.Action _onExplosionComplete;
     
+    // Flag: explosion finished, waiting for external clear (e.g. user unlocks next card)
+    private bool _explosionCompleteWaitingForClear = false;
+    
     // Public property for external check
     public bool IsFastDisappearing => _isFastDisappearing;
-    public bool IsExploding => _isExploding || Time.time < _explosionEndTime;
+    // IsExploding: true if explosion is in progress OR waiting for external clear (letters still visible)
+    public bool IsExploding => _isExploding || Time.time < _explosionEndTime || _explosionCompleteWaitingForClear;
+    public bool IsExplosionWaitingForClear => _explosionCompleteWaitingForClear;
     
     /// <summary>
     /// Event fired when explosion animation completes (all letters reached destination)
@@ -238,9 +243,9 @@ public class TextAnimator : MonoBehaviour
 
     public void SetText(string text)
     {
-        // Если идёт взрыв - игнорируем ЛЮБЫЕ изменения текста
-        // Текст очистится сам когда все буквы станут Hidden
-        if (_isExploding)
+        // Если идёт взрыв ИЛИ ждём внешней очистки - игнорируем ЛЮБЫЕ изменения текста
+        // Текст очистится только через ClearExplosionText()
+        if (_isExploding || _explosionCompleteWaitingForClear)
         {
             return;
         }
@@ -326,8 +331,8 @@ public class TextAnimator : MonoBehaviour
 
     public void ResetProgress()
     {
-        // Не сбрасываем во время взрыва - анимация должна доиграть
-        if (_isExploding)
+        // Не сбрасываем во время взрыва или ожидания очистки - анимация должна доиграть
+        if (_isExploding || _explosionCompleteWaitingForClear)
         {
             return;
         }
@@ -425,6 +430,22 @@ public class TextAnimator : MonoBehaviour
     public void TriggerSelected()
     {
         TriggerDisappear(DisappearMode.Selected);
+    }
+    
+    /// <summary>
+    /// Очистить текст после завершения взрыва.
+    /// Вызывается извне (из CardDisplay) когда игрок разблокирует следующую карту.
+    /// </summary>
+    public void ClearExplosionText()
+    {
+        if (_explosionCompleteWaitingForClear)
+        {
+            _explosionCompleteWaitingForClear = false;
+            _textToAnimate = "";
+            _textComponent.text = "";
+            
+            Debug.Log($"[TextAnimator] Explosion text cleared by external call");
+        }
     }
     
     // Helper methods
@@ -768,16 +789,19 @@ public class TextAnimator : MonoBehaviour
                 _isExploding = false;
                 _explosionEndTime = 0f;
                 
-                // Теперь можно безопасно очистить текст
-                _textToAnimate = "";
-                _textComponent.text = "";
-                
-                Debug.Log($"[TextAnimator] Explosion complete, text cleared");
-                
-                // Вызываем callback если был взрыв
+                // НЕ очищаем текст автоматически после взрыва!
+                // Устанавливаем флаг ожидания внешней очистки
                 if (wasExploding)
                 {
+                    _explosionCompleteWaitingForClear = true;
+                    Debug.Log($"[TextAnimator] Explosion complete, waiting for external clear");
                     OnExplosionComplete?.Invoke();
+                }
+                else
+                {
+                    // Обычный disappear (Return/Selected без взрыва) - очищаем сразу
+                    _textToAnimate = "";
+                    _textComponent.text = "";
                 }
             }
             return;

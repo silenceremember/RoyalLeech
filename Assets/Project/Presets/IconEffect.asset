@@ -17,7 +17,7 @@ MonoBehaviour:
   meniscusStrength: 0.04
   bubbleSize: 0.2
   pixelDensity: 64
-  increaseStrength: 0.1
+  increaseStrength: 0.2
   decreaseStrength: 0.7
   glowStrength: 0.7
   gainSplashIntensity: 1
@@ -32,7 +32,7 @@ MonoBehaviour:
   effectDuration: 0.8
   pulseSpeed: 4
   trailingDelay: 1
-  trailingDuration: 0.15
+  trailingDuration: 0.4
   previewShakeBase: 2
   enableIdleAnimation: 1
   idleRotationAmount: 2
