@@ -40,7 +40,8 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     float MeniscusStrength => effectPreset != null ? effectPreset.meniscusStrength : 0.04f;
     float BubbleSize => effectPreset != null ? effectPreset.bubbleSize : 0.1f;
     float PixelDensity => effectPreset != null ? effectPreset.pixelDensity : 0f;
-    float EffectStrength => effectPreset != null ? effectPreset.effectStrength : 0.5f;
+    float IncreaseStrength => effectPreset != null ? effectPreset.increaseStrength : 0.5f;
+    float DecreaseStrength => effectPreset != null ? effectPreset.decreaseStrength : 0.5f;
     float GlowStrength => effectPreset != null ? effectPreset.glowStrength : 0.5f;
     float PulseSpeed => effectPreset != null ? effectPreset.pulseSpeed : 4f;
     float GainEffectIntensity => effectPreset != null ? effectPreset.gainEffectIntensity : 1f;
@@ -114,7 +115,8 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     private static readonly int PixelDensityID = Shader.PropertyToID("_PixelDensity");
     
     private static readonly int EffectIntensityID = Shader.PropertyToID("_EffectIntensity");
-    private static readonly int EffectStrengthID = Shader.PropertyToID("_EffectStrength");
+    private static readonly int IncreaseStrengthID = Shader.PropertyToID("_IncreaseStrength");
+    private static readonly int DecreaseStrengthID = Shader.PropertyToID("_DecreaseStrength");
     private static readonly int GlowIntensityID = Shader.PropertyToID("_GlowIntensity");
     private static readonly int GlowStrengthID = Shader.PropertyToID("_GlowStrength");
     private static readonly int PulseSpeedID = Shader.PropertyToID("_PulseSpeed");
@@ -438,7 +440,8 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         
         // Effects (white-based)
         _materialInstance.SetFloat(EffectIntensityID, effectIntensity);
-        _materialInstance.SetFloat(EffectStrengthID, EffectStrength);
+        _materialInstance.SetFloat(IncreaseStrengthID, IncreaseStrength);
+        _materialInstance.SetFloat(DecreaseStrengthID, DecreaseStrength);
         _materialInstance.SetFloat(GlowIntensityID, glowIntensity);
         _materialInstance.SetFloat(GlowStrengthID, GlowStrength);
         _materialInstance.SetFloat(PulseSpeedID, PulseSpeed);

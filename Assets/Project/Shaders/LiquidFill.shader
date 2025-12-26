@@ -25,8 +25,9 @@ Shader "RoyalLeech/UI/LiquidFill"
         _PixelDensity ("Pixel Density (0=off)", Float) = 0
         
         [Header(Effects)]
-        _EffectIntensity ("Effect Intensity (-1=subtract, +1=add)", Range(-1, 1)) = 0.0
-        _EffectStrength ("Effect Strength", Range(0, 2)) = 0.5
+        _EffectIntensity ("Effect Intensity (-1=decrease, +1=increase)", Range(-1, 1)) = 0.0
+        _IncreaseStrength ("Increase Strength (lighten)", Range(0, 2)) = 0.5
+        _DecreaseStrength ("Decrease Strength (darken)", Range(0, 2)) = 0.5
         _GlowIntensity ("Glow Intensity (pulsing darken)", Range(0, 2)) = 0.0
         _GlowStrength ("Glow Strength", Range(0, 2)) = 0.5
         _PulseSpeed ("Pulse Speed", Float) = 2.0
@@ -124,7 +125,8 @@ Shader "RoyalLeech/UI/LiquidFill"
                 float _PixelDensity;
                 
                 float _EffectIntensity;
-                float _EffectStrength;
+                float _IncreaseStrength;
+                float _DecreaseStrength;
                 float _GlowIntensity;
                 float _GlowStrength;
                 float _PulseSpeed;
@@ -323,16 +325,17 @@ Shader "RoyalLeech/UI/LiquidFill"
                 // Effect: LIGHTEN (positive) or DARKEN (negative) overlay
                 if (abs(_EffectIntensity) > 0.0001)
                 {
-                    float effectAmount = abs(_EffectIntensity) * _EffectStrength * mask;
                     if (_EffectIntensity > 0)
                     {
                         // Positive: lerp towards white (lighten)
-                        result.rgb = lerp(result.rgb, half3(1, 1, 1), effectAmount);
+                        float increaseAmount = _EffectIntensity * _IncreaseStrength * mask;
+                        result.rgb = lerp(result.rgb, half3(1, 1, 1), increaseAmount);
                     }
                     else
                     {
-                        // Negative: lerp towards black (darken) - symmetric with increase
-                        result.rgb = lerp(result.rgb, half3(0, 0, 0), effectAmount);
+                        // Negative: lerp towards black (darken)
+                        float decreaseAmount = abs(_EffectIntensity) * _DecreaseStrength * mask;
+                        result.rgb = lerp(result.rgb, half3(0, 0, 0), decreaseAmount);
                     }
                 }
                 

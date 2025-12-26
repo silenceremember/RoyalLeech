@@ -22,8 +22,11 @@ public class IconEffectPreset : ScriptableObject
     public float pixelDensity = 0f;
     
     [Header("Effect Strength")]
-    [Tooltip("Multiplier for gain/loss effect")]
-    [Range(0, 2)] public float effectStrength = 0.5f;
+    [Tooltip("Multiplier for INCREASE effect (lighten towards white)")]
+    [Range(0, 2)] public float increaseStrength = 0.5f;
+    
+    [Tooltip("Multiplier for DECREASE effect (darken towards black)")]
+    [Range(0, 2)] public float decreaseStrength = 0.5f;
     
     [Tooltip("Multiplier for glow effect")]
     [Range(0, 2)] public float glowStrength = 0.5f;
