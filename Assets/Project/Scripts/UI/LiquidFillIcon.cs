@@ -176,11 +176,12 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
             _trailingDelayTimer -= Time.deltaTime;
         }
         
-        // Trailing fill follows actual fill with lerp ONLY after delay has passed
+        // Trailing fill follows actual fill ONLY after delay has passed
         if (_trailingDelayTimer <= 0f && Mathf.Abs(trailingFill - fillAmount) > 0.001f)
         {
-            // Lerp speed - 5f means it takes ~0.2s to catch up
-            trailingFill = Mathf.Lerp(trailingFill, fillAmount, Time.deltaTime * 5f);
+            // MoveTowards with speed = 1.0 / TrailingDuration (so 0.5f duration = 2 units/sec)
+            float speed = 1f / TrailingDuration;
+            trailingFill = Mathf.MoveTowards(trailingFill, fillAmount, Time.deltaTime * speed);
         }
         else if (_trailingDelayTimer <= 0f && Mathf.Abs(trailingFill - fillAmount) <= 0.001f)
         {
