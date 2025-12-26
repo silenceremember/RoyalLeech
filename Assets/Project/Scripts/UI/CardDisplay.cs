@@ -763,12 +763,12 @@ public class CardDisplay : MonoBehaviour
                             else
                                 tierMultiplier = 1f; // Normal
                             
-                            // Effect per letter = tierMultiplier / letterCount
-                            effectMultiplierPerLetter[i] = tierMultiplier / letterCounts[i];
+                            // Each letter applies FULL tier effect (not 1/N)
+                            effectMultiplierPerLetter[i] = tierMultiplier;
                         }
                         else
                         {
-                            effectMultiplierPerLetter[i] = 1f / letterCounts[i]; // Fallback
+                            effectMultiplierPerLetter[i] = 1f; // Fallback
                         }
                     }
                 }
