@@ -7,6 +7,7 @@ Shader "RoyalLeech/UI/LiquidFill"
         
         [Header(Fill Effect)]
         _FillAmount ("Fill Amount", Range(0, 1)) = 1.0
+        _TrailingFill ("Trailing Fill (delayed)", Range(0, 1)) = 1.0
         _FillColor ("Fill Color", Color) = (0.3, 0.7, 0.95, 1)
         _BackgroundColor ("Background Color", Color) = (0.1, 0.15, 0.25, 1)
         _BackgroundAlpha ("Background Blend (0=black, 1=color)", Range(0, 1)) = 0.7
@@ -110,6 +111,7 @@ Shader "RoyalLeech/UI/LiquidFill"
                 float4 _Color;
                 
                 float _FillAmount;
+                float _TrailingFill;
                 float4 _FillColor;
                 float4 _BackgroundColor;
                 float _BackgroundAlpha;
@@ -192,7 +194,11 @@ Shader "RoyalLeech/UI/LiquidFill"
             float getBubbles(float2 uv, float fillLine, float time)
             {
                 if (_BubbleIntensity < 0.01) return 0.0;
-                if (uv.y > fillLine - 0.02) return 0.0;
+                
+                // Smooth fade near surface instead of hard cutoff
+                float distToSurface = fillLine - uv.y;
+                float surfaceFade = smoothstep(0.0, 0.08, distToSurface);
+                if (surfaceFade < 0.01) return 0.0;
                 
                 float bubbles = 0.0;
                 
@@ -212,7 +218,8 @@ Shader "RoyalLeech/UI/LiquidFill"
                 float2 c2 = frac(buv2) - 0.5;
                 bubbles += (1.0 - smoothstep(0.08, 0.28, length(c2))) * step(0.5, b2) * 0.6;
                 
-                return saturate(bubbles * _BubbleIntensity * 2.0);
+                // Apply intensity with smooth transition and surface fade
+                return saturate(bubbles * _BubbleIntensity * 2.0 * surfaceFade);
             }
             
             Varyings vert(Attributes IN)
@@ -276,38 +283,59 @@ Shader "RoyalLeech/UI/LiquidFill"
                     isFilled = smoothstep(fillLine + 0.012, fillLine - 0.012, uv.y);
                 }
                 
-                // Фон: сначала черный (непрозрачный), затем BackgroundColor накладывается поверх с альфой
-                // При BackgroundAlpha=0 видим чистый черный, при 1 видим полный BackgroundColor
-                half3 bgColor = _BackgroundColor.rgb * _BackgroundAlpha; // Pre-multiplied alpha для overlay
-                half4 background = half4(bgColor, texColor.a); // Полностью непрозрачный в границах спрайта
-                half4 filled = texColor * _FillColor;
+                // === TRAILING FILL (works for both increase and decrease) ===
+                // Use the SAME wave calculation but with _TrailingFill as base
+                // This is a simple mask: area between trailing level and fill level
                 
-                // Bubbles with color
-                float bubbles = getBubbles(pixelUV, fillLine, time);
-                filled.rgb = lerp(filled.rgb, _BubbleColor.rgb, bubbles * _BubbleColor.a);
+                // Calculate trailing fill level (same wave formula, different base)
+                float trailingBase = _TrailingFill;
+                float trailEdgeDist = min(uv.x, 1.0 - uv.x);
+                float trailMeniscus = pow(1.0 - saturate(trailEdgeDist * 2.5), 2.0) * _MeniscusStrength;
+                trailingBase += trailMeniscus;
+                float trailWave = sin(uv.x * 8.0 + time * _FillWaveSpeed) * _FillWaveStrength;
+                trailingBase += trailWave;
                 
-                // Surface glow line
-                if (!pixelated)
+                float trailingLine = trailingBase;
+                if (pixelated)
                 {
-                    float surfaceGlow = exp(-abs(uv.y - fillLine) * 60.0) * 0.4 * isFilled;
-                    filled.rgb += surfaceGlow;
+                    trailingLine = floor(trailingLine * _PixelDensity) / _PixelDensity;
+                }
+                
+                // isTrailingFilled = using trailing level instead of fill level
+                float isTrailingFilled;
+                if (pixelated)
+                {
+                    isTrailingFilled = step(pixelUV.y, trailingLine);
                 }
                 else
                 {
-                    // Pixelated surface glow (simpler, but still adds highlight at top)
-                    float distToSurface = abs(pixelUV.y - fillLine);
-                    float pixelGlow = step(distToSurface, 0.05) * 0.2 * isFilled;
-                    filled.rgb += pixelGlow;
+                    isTrailingFilled = smoothstep(trailingLine + 0.012, trailingLine - 0.012, uv.y);
                 }
                 
-                // Depth gradient - subtle (0.9 to 1.0)
-                float gradientFactor = uv.y / max(_FillAmount, 0.01);
-                filled.rgb *= lerp(0.9, 1.0, saturate(gradientFactor));
+                // Trailing zone = XOR between filled and trailing filled
+                // Loss: trailing > fill → shows area above fill, below trailing
+                // Gain: trailing < fill → shows area above trailing, below fill
+                float isTrailing = abs(isTrailingFilled - isFilled);
                 
-                // Смешиваем: filled поверх background
+                // Background and Filled colors
+                half3 bgColor = _BackgroundColor.rgb * _BackgroundAlpha;
+                half4 background = half4(bgColor, texColor.a);
+                half4 filled = texColor * _FillColor;
+                
+                // Bubbles with color (only in filled area, not trailing)
+                float bubbles = getBubbles(pixelUV, fillLine, time);
+                filled.rgb = lerp(filled.rgb, _BubbleColor.rgb, bubbles * _BubbleColor.a);
+                
+                // TRAILING: solid light color (bright version of fill)
+                half3 trailingColor = filled.rgb + 0.25; // Lighter version
+                
+                // Blend layers: background → filled → trailing (ON TOP!)
+                // Trailing is drawn LAST so it's visible for both increase and decrease
                 half4 result;
-                result.rgb = lerp(background.rgb, filled.rgb, isFilled);
-                result.a = texColor.a; // Альфа всегда из текстуры (форма спрайта)
+                result.rgb = background.rgb;
+                result.rgb = lerp(result.rgb, filled.rgb, isFilled);
+                result.rgb = lerp(result.rgb, trailingColor, isTrailing); // Trailing on top!
+                result.a = texColor.a;
                 
                 // === Effects: Simple Light/Dark Overlay ===
                 float mask = texColor.a;

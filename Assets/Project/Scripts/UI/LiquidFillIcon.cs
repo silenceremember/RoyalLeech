@@ -54,6 +54,8 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     float MajorMultiplier => effectPreset != null ? effectPreset.majorMultiplier : 1.5f;
     float EffectDuration => effectPreset != null ? effectPreset.effectDuration : 0.8f;
     float PulseSpeed => effectPreset != null ? effectPreset.pulseSpeed : 4f;
+    float TrailingDelay => effectPreset != null ? effectPreset.trailingDelay : 0.8f;
+    float TrailingDuration => effectPreset != null ? effectPreset.trailingDuration : 0.5f;
     float PreviewShakeBase => effectPreset != null ? effectPreset.previewShakeBase : 5f;
     bool EnableIdleAnimation => effectPreset != null ? effectPreset.enableIdleAnimation : true;
     float IdleRotationAmount => effectPreset != null ? effectPreset.idleRotationAmount : 2f;
@@ -77,12 +79,16 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     private RectTransform _rectTransform;
     private Sequence _currentSequence;
     private Tween _fillTween;
+    private Tween _trailingTween;
     private Tween _shakeTween;
     private Tween _pulseTween;
     private Tween _glowTween;
     private Tween _previewGlowTween;
     private Tween _previewPulseTween;
     private bool _isPreviewActive;
+    
+    // Trailing fill (delayed damage indicator)
+    private float trailingFill = 1f;
     
     // Idle and follow tracking
     private float _idleTime;
@@ -118,6 +124,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     private static readonly int ShakeIntensityID = Shader.PropertyToID("_ShakeIntensity");
     private static readonly int ShakeSpeedID = Shader.PropertyToID("_ShakeSpeed");
     private static readonly int ShadowColorID = Shader.PropertyToID("_ShadowColor");
+    private static readonly int TrailingFillID = Shader.PropertyToID("_TrailingFill");
     
     void Awake()
     {
@@ -134,6 +141,9 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         _idleTime = Random.Range(0f, 100f);
         _baseScale = _rectTransform.localScale;
         _baseRotation = _rectTransform.localRotation;
+        
+        // Initialize trailing to match current fill
+        trailingFill = fillAmount;
         
         // Reset liquid to calm state on start
         ResetLiquidToCalm();
@@ -445,6 +455,9 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         _materialInstance.SetFloat(ShakeIntensityID, shakeIntensity);
         _materialInstance.SetFloat(ShakeSpeedID, 30f); // hardcoded shake speed
         
+        // Trailing fill (delayed damage indicator)
+        _materialInstance.SetFloat(TrailingFillID, trailingFill);
+        
         // Shadow
         _materialInstance.SetColor(ShadowColorID, ShadowColor);
     }
@@ -626,6 +639,13 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         // Fill animation
         _currentSequence.Join(AnimateFillTo(newFillAmount, fillDur));
         
+        // TRAILING: trailing stays at OLD level, then catches up to new fill
+        // (shows the "future" fill level as light zone above current trailing)
+        _trailingTween?.Kill();
+        _trailingTween = DOTween.To(() => trailingFill, x => trailingFill = x, newFillAmount, TrailingDuration)
+            .SetDelay(TrailingDelay)
+            .SetEase(Ease.InOutQuad);
+        
         // Fade out effect
         _currentSequence.Append(
             DOTween.To(() => effectIntensity, x => effectIntensity = x, 0f, fadeDur).SetEase(Ease.OutQuad)
@@ -638,12 +658,14 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     /// JUICY resource loss effect!
     /// Uses effectIntensity < 0 to SUBTRACT (darken). Shake + fill decrease + LIQUID SPLASH!
     /// Punch is NEGATIVE (shrink) for loss!
+    /// Includes TRAILING FILL effect (delayed damage indicator).
     /// </summary>
     /// <param name="newFillAmount">Target fill amount</param>
     /// <param name="delta">Amount changed (absolute value used to determine minor/major effect)</param>
     public Sequence PlayLossEffect(float newFillAmount, int delta = 100)
     {
         _currentSequence?.Kill();
+        _trailingTween?.Kill();
         _currentSequence = DOTween.Sequence();
         
         // Determine effect tier: Minor / Normal / Major
@@ -661,6 +683,10 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         float punchDur = EffectDuration * 0.4f;
         float fillDur = EffectDuration * 0.5f;
         float fadeDur = EffectDuration * 0.5f;
+        
+        // === TRAILING FILL (delayed damage indicator) ===
+        // Keep trailing at current fill amount, then animate to new value after delay
+        // trailingFill stays at current value, actual fill drops immediately
         
         // LIQUID SPLASH (scaled by multiplier)
         PlaySplash(LossSplashIntensity * multiplier, EffectDuration);
@@ -683,8 +709,13 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
             _rectTransform.DOShakePosition(shakeDur, 15f * multiplier, 20, 90f, false, true)
         );
         
-        // Fill animation
+        // Fill animation (actual fill drops immediately)
         _currentSequence.Join(AnimateFillTo(newFillAmount, fillDur));
+        
+        // Trailing fill animation: delay, then catch up
+        _trailingTween = DOTween.To(() => trailingFill, x => trailingFill = x, newFillAmount, TrailingDuration)
+            .SetDelay(TrailingDelay)
+            .SetEase(Ease.InOutQuad);
         
         // Fade out effects
         _currentSequence.Append(

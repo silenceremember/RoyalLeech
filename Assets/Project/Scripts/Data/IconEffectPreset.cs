@@ -61,6 +61,13 @@ public class IconEffectPreset : ScriptableObject
     [Tooltip("Speed of pulse and glow animations")]
     public float pulseSpeed = 4f;
     
+    [Header("Trailing Fill (delayed damage indicator)")]
+    [Tooltip("Delay before trailing starts to catch up (seconds)")]
+    public float trailingDelay = 0.8f;
+    
+    [Tooltip("How fast trailing catches up to actual fill (duration in seconds)")]
+    public float trailingDuration = 0.5f;
+    
     [Header("Preview Effect (when hovering over choice)")]
     [Tooltip("Base shake intensity for preview (0 = min shake when far, this value = max shake at threshold)")]
     [Range(1, 20)] public float previewShakeBase = 5f;
