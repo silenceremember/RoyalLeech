@@ -95,6 +95,10 @@ public class TextAnimatorPreset : ScriptableObject
     [Range(0.05f, 0.5f)]
     public float disappearSelectedDuration = 0.25f;
     
+    [Header("=== LETTER EXPLOSION ===")]
+    [Tooltip("Preset for letter explosion effect (null = use normal disappear)")]
+    public LetterExplosionPreset explosionPreset;
+    
     /// <summary>
     /// Вычислить эффекты для появления.
     /// </summary>

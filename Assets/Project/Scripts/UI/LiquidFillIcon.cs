@@ -938,4 +938,31 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         glowIntensity = 0;
         shakeIntensity = 0;
     }
+    
+    // =====================================================
+    // === LETTER EXPLOSION RECEIVER ===
+    // =====================================================
+    
+    /// <summary>
+    /// Called when a letter "arrives" at this icon during explosion effect.
+    /// Triggers a small visual feedback (glow burst + scale punch + splash).
+    /// </summary>
+    /// <param name="arrivalGlow">Glow intensity to add</param>
+    /// <param name="arrivalPunch">Scale punch amount</param>
+    /// <param name="arrivalSplash">Splash intensity to add</param>
+    public void ReceiveLetter(float arrivalGlow = 0.3f, float arrivalPunch = 0.05f, float arrivalSplash = 0.2f)
+    {
+        // Accumulate glow (capped)
+        glowIntensity = Mathf.Min(glowIntensity + arrivalGlow, 1.5f);
+        
+        // Accumulate splash (capped)
+        splashIntensity = Mathf.Min(splashIntensity + arrivalSplash, 0.8f);
+        
+        // Mini scale punch (kill previous to restart)
+        if (_rectTransform != null)
+        {
+            DOTween.Kill(_rectTransform, true);
+            _rectTransform.DOPunchScale(Vector3.one * arrivalPunch, 0.15f, 5, 0.5f);
+        }
+    }
 }

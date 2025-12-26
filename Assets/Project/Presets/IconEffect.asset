@@ -15,36 +15,33 @@ MonoBehaviour:
   fillWaveStrength: 0.02
   fillWaveSpeed: 3
   meniscusStrength: 0.04
-  bubbleSize: 0.1
+  bubbleSize: 0.2
   pixelDensity: 64
-  effectStrength: 0.5
-  glowStrength: 0.6
-  pulseSpeed: 4
-  gainEffectIntensity: 1
-  gainPulseIntensity: 0.6
+  increaseStrength: 0.1
+  decreaseStrength: 0.7
+  glowStrength: 0.7
   gainSplashIntensity: 1
-  gainSplashDuration: 0.6
-  lossEffectIntensity: 1
-  lossPulseIntensity: 0.5
-  lossShakeIntensity: 5
   lossSplashIntensity: 1.2
-  lossSplashDuration: 0.7
-  fillDuration: 0.5
-  fillEase: 27
-  flashDuration: 0.15
-  shakeDuration: 0.3
-  punchScale: 0.2
-  effectHoldDuration: 0.2
-  effectFadeDuration: 0.5
+  lossShakeIntensity: 10
+  increasePunchScale: 0.5
+  decreasePunchScale: 0.1
+  minorThreshold: 5
+  majorThreshold: 12
+  minorMultiplier: 0.75
+  majorMultiplier: 1.25
+  effectDuration: 0.8
+  pulseSpeed: 4
+  trailingDelay: 1
+  trailingDuration: 0.15
+  previewShakeBase: 2
   enableIdleAnimation: 1
   idleRotationAmount: 2
   idleScaleAmount: 0.02
   idleSpeed: 1.5
   enableCardFollowing: 1
-  followTiltAmount: 50
+  followTiltAmount: 30
   followSpeed: 8
   shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
   shadowIntensity: 0.25
-  shakeSpeed: 30
-  criticalLowThreshold: 0.429
+  criticalLowThreshold: 0.2
   criticalHighThreshold: 0.8

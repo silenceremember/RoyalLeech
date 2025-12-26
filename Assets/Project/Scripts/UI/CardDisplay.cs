@@ -115,6 +115,11 @@ public class CardDisplay : MonoBehaviour
     private string _pendingText = null;
     private bool _isWaitingForDisappear = false;
     
+    // Pending setup (waiting for explosion to complete)
+    private CardData _pendingSetupData = null;
+    private bool _pendingSetupIsFront = false;
+    private bool _pendingAnimateToFront = false;
+    
     // Canvas group for action text opacity control
     private CanvasGroup _actionTextCanvasGroup;
 
@@ -145,10 +150,60 @@ public class CardDisplay : MonoBehaviour
             {
                 _actionTextCanvasGroup = actionText.gameObject.AddComponent<CanvasGroup>();
             }
+            
+            // Подписываемся на завершение взрыва
+            if (actionAnimator != null)
+            {
+                actionAnimator.OnExplosionComplete += OnExplosionCompleteHandler;
+            }
+        }
+    }
+    
+    void OnDestroy()
+    {
+        // Отписываемся
+        if (actionAnimator != null)
+        {
+            actionAnimator.OnExplosionComplete -= OnExplosionCompleteHandler;
+        }
+    }
+    
+    private void OnExplosionCompleteHandler()
+    {
+        // Взрыв завершился - выполняем отложенный Setup если есть
+        if (_pendingSetupData != null)
+        {
+            var data = _pendingSetupData;
+            var isFront = _pendingSetupIsFront;
+            var shouldAnimate = _pendingAnimateToFront;
+            
+            _pendingSetupData = null;
+            _pendingAnimateToFront = false;
+            
+            ExecuteSetup(data, isFront);
+            
+            // Выполняем отложенный AnimateToFront
+            if (shouldAnimate)
+            {
+                AnimateToFront();
+            }
         }
     }
 
     public void Setup(CardData data, bool isFront)
+    {
+        // Если взрыв в процессе - откладываем Setup
+        if (actionAnimator != null && actionAnimator.IsExploding)
+        {
+            _pendingSetupData = data;
+            _pendingSetupIsFront = isFront;
+            return;
+        }
+        
+        ExecuteSetup(data, isFront);
+    }
+    
+    private void ExecuteSetup(CardData data, bool isFront)
     {
         CurrentData = data;
         characterImage.sprite = data.characterSprite;
@@ -208,6 +263,13 @@ public class CardDisplay : MonoBehaviour
 
     public void AnimateToFront()
     {
+        // Если есть отложенный Setup (ждём взрыва) - также откладываем анимацию
+        if (_pendingSetupData != null)
+        {
+            _pendingAnimateToFront = true;
+            return;
+        }
+        
         _isFront = true;
         _isLocked = false;
         _isInteractable = false;
@@ -614,10 +676,56 @@ public class CardDisplay : MonoBehaviour
         _isLocked = true;
         _isInteractable = false;
         
-        // Запускаем анимацию пропадания Selected (одновременно все буквы)
+        // Get resource changes
+        int[] changes = isRight 
+            ? new int[] { CurrentData.rightSpades, CurrentData.rightHearts, CurrentData.rightDiamonds, CurrentData.rightClubs }
+            : new int[] { CurrentData.leftSpades, CurrentData.leftHearts, CurrentData.leftDiamonds, CurrentData.leftClubs };
+        
+        // Check if ANY resource changes
+        bool hasChanges = false;
+        foreach (var c in changes) if (c != 0) { hasChanges = true; break; }
+        
         if (actionAnimator != null)
         {
-            actionAnimator.TriggerSelected();
+            if (hasChanges && actionAnimator.preset?.explosionPreset != null)
+            {
+                // Get icon positions from GameManager
+                var gm = GameManager.Instance;
+                Vector2[] iconPositions = new Vector2[]
+                {
+                    gm.spadesIcon != null ? (Vector2)gm.spadesIcon.transform.position : Vector2.zero,
+                    gm.heartsIcon != null ? (Vector2)gm.heartsIcon.transform.position : Vector2.zero,
+                    gm.diamondsIcon != null ? (Vector2)gm.diamondsIcon.transform.position : Vector2.zero,
+                    gm.clubsIcon != null ? (Vector2)gm.clubsIcon.transform.position : Vector2.zero
+                };
+                
+                // Get explosion preset for arrival effect values
+                var expPreset = actionAnimator.preset.explosionPreset;
+                
+                // Trigger explosion with callback
+                actionAnimator.TriggerExplosion(changes, iconPositions, (iconIndex) =>
+                {
+                    // Letter arrived - trigger mini effect on icon
+                    LiquidFillIcon icon = iconIndex switch
+                    {
+                        0 => gm.spadesIcon,
+                        1 => gm.heartsIcon,
+                        2 => gm.diamondsIcon,
+                        3 => gm.clubsIcon,
+                        _ => null
+                    };
+                    icon?.ReceiveLetter(
+                        expPreset.arrivalGlowBurst,
+                        expPreset.arrivalPunchScale,
+                        expPreset.arrivalSplash
+                    );
+                });
+            }
+            else
+            {
+                // No changes or no explosion preset - normal disappear
+                actionAnimator.TriggerSelected();
+            }
         }
         else if (actionText)
         {

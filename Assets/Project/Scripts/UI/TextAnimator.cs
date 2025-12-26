@@ -19,7 +19,8 @@ public enum LetterState
     Selected,
     DisappearingNormal,   // Обычное пропадание при свайпе назад
     DisappearingReturn,   // Быстрое пропадание при возврате к центру
-    DisappearingSelected  // Пропадание после выбора
+    DisappearingSelected, // Пропадание после выбора
+    Exploding             // Flying to resource icon
 }
 
 /// <summary>
@@ -53,6 +54,16 @@ public struct LetterData
     public Vector2 prevOffset;
     public float prevRotation;
     
+    // Explosion flight data
+    public Vector2 startWorldPos;       // Where letter started
+    public Vector2 targetWorldPos;      // Target icon position
+    public Vector2 controlPoint;        // Bezier control point
+    public float flightDuration;        // Individual flight duration
+    public float flightDelay;           // Stagger delay
+    public float rotationDirection;     // +1 or -1
+    public int targetIconIndex;         // 0=Spades, 1=Hearts, 2=Diamonds, 3=Clubs
+    public bool arrivalCallbackFired;   // Prevent double-firing
+    
     public static LetterData Hidden => new LetterData
     {
         state = LetterState.Hidden,
@@ -66,7 +77,8 @@ public struct LetterData
         prevScale = 0f,
         prevAlpha = 0f,
         prevOffset = Vector2.zero,
-        prevRotation = 0f
+        prevRotation = 0f,
+        arrivalCallbackFired = false
     };
 }
 
@@ -130,8 +142,23 @@ public class TextAnimator : MonoBehaviour
     // Flag to block distance-based updates during fast disappear (Return/Selected)
     private bool _isFastDisappearing = false;
     
+    // Flag for explosion in progress
+    private bool _isExploding = false;
+    
+    // Time when explosion animation should be fully complete
+    private float _explosionEndTime = 0f;
+    
+    // Explosion completion callback
+    private System.Action _onExplosionComplete;
+    
     // Public property for external check
     public bool IsFastDisappearing => _isFastDisappearing;
+    public bool IsExploding => _isExploding || Time.time < _explosionEndTime;
+    
+    /// <summary>
+    /// Event fired when explosion animation completes (all letters reached destination)
+    /// </summary>
+    public event System.Action OnExplosionComplete;
 
     void Awake()
     {
@@ -211,8 +238,16 @@ public class TextAnimator : MonoBehaviour
 
     public void SetText(string text)
     {
-        // Сбрасываем флаг быстрого пропадания при установке нового текста
+        // Если идёт взрыв - игнорируем ЛЮБЫЕ изменения текста
+        // Текст очистится сам когда все буквы станут Hidden
+        if (_isExploding)
+        {
+            return;
+        }
+        
+        // Сбрасываем флаги при установке нового текста
         _isFastDisappearing = false;
+        _isExploding = false;
         
         _textToAnimate = text;
         
@@ -291,6 +326,12 @@ public class TextAnimator : MonoBehaviour
 
     public void ResetProgress()
     {
+        // Не сбрасываем во время взрыва - анимация должна доиграть
+        if (_isExploding)
+        {
+            return;
+        }
+        
         _currentVisibleCharsFloat = 0f;
         _targetCharCount = 0;
         _lastVisibleChars = 0;
@@ -331,6 +372,10 @@ public class TextAnimator : MonoBehaviour
         
         // Для Return и Selected блокируем distance-based обновления
         _isFastDisappearing = (mode == DisappearMode.Return || mode == DisappearMode.Selected);
+        
+        // Сбрасываем explosion состояние для обычного пропадания
+        _isExploding = false;
+        _explosionEndTime = 0f;
         
         for (int i = 0; i < _letterData.Length; i++)
         {
@@ -397,6 +442,216 @@ public class TextAnimator : MonoBehaviour
             case LetterState.DisappearingSelected: return DisappearMode.Selected;
             default: return DisappearMode.Normal;
         }
+    }
+    
+    // Explosion callback storage
+    private System.Action<int> _explosionArrivalCallback;
+    
+    /// <summary>
+    /// Trigger letter explosion effect. Letters fly to resource icons proportionally.
+    /// </summary>
+    /// <param name="resourceChanges">Array of 4 ints: [spades, hearts, diamonds, clubs]</param>
+    /// <param name="iconPositions">World positions of 4 icons</param>
+    /// <param name="onLetterArrival">Callback(iconIndex) when each letter arrives</param>
+    public void TriggerExplosion(int[] resourceChanges, Vector2[] iconPositions, System.Action<int> onLetterArrival)
+    {
+        if (_letterData == null || preset?.explosionPreset == null) 
+        {
+            Debug.LogWarning($"[TextAnimator] TriggerExplosion fallback to Selected: letterData={_letterData != null}, preset={preset != null}, explosionPreset={preset?.explosionPreset != null}");
+            TriggerSelected();
+            return;
+        }
+        
+        // Check if ANY resource changes
+        int totalChange = 0;
+        foreach (var c in resourceChanges) totalChange += Mathf.Abs(c);
+        
+        if (totalChange == 0)
+        {
+            // No changes - use normal Selected disappear
+            TriggerSelected();
+            return;
+        }
+        
+        _explosionArrivalCallback = onLetterArrival;
+        var expPreset = preset.explosionPreset;
+        
+        // Distribute letters proportionally to resource changes
+        int[] letterAssignments = DistributeLettersToIcons(resourceChanges);
+        
+        // Get start positions for all letters
+        Vector2[] letterWorldPositions = GetLetterWorldPositions();
+        
+        // Initialize explosion for each letter
+        int currentLetterIndex = 0;
+        for (int iconIdx = 0; iconIdx < 4; iconIdx++)
+        {
+            int letterCount = letterAssignments[iconIdx];
+            for (int j = 0; j < letterCount; j++)
+            {
+                if (currentLetterIndex >= _letterData.Length) break;
+                
+                ref LetterData letter = ref _letterData[currentLetterIndex];
+                
+                // Skip if letter is hidden or not visible
+                if (letter.state == LetterState.Hidden)
+                {
+                    currentLetterIndex++;
+                    continue;
+                }
+                
+                // Save prev state for crossfade
+                letter.prevScale = letter.currentScale;
+                letter.prevAlpha = letter.currentAlpha;
+                letter.prevOffset = letter.currentOffset;
+                letter.prevRotation = letter.currentRotation;
+                letter.previousState = letter.state;
+                
+                // Set explosion state
+                letter.state = LetterState.Exploding;
+                letter.stateTime = 0f;
+                letter.transitionProgress = 1f; // No crossfade needed
+                letter.arrivalCallbackFired = false;
+                
+                // Flight data
+                letter.startWorldPos = letterWorldPositions[currentLetterIndex];
+                letter.targetWorldPos = iconPositions[iconIdx];
+                letter.targetIconIndex = iconIdx;
+                
+                // Bezier control point (arc with side offset for curve)
+                Vector2 midPoint = (letter.startWorldPos + letter.targetWorldPos) * 0.5f;
+                float arcOffset = expPreset.arcHeight * (1f + Random.Range(-expPreset.arcRandomness, expPreset.arcRandomness));
+                float sideOffset = Random.Range(-expPreset.arcSideOffset, expPreset.arcSideOffset);
+                letter.controlPoint = midPoint + Vector2.up * arcOffset + Vector2.right * sideOffset;
+                
+                // Timing
+                letter.flightDuration = expPreset.flightDuration * (1f + Random.Range(-expPreset.flightDurationRandomness, expPreset.flightDurationRandomness));
+                letter.flightDelay = currentLetterIndex * expPreset.staggerDelay;
+                
+                // Rotation direction
+                letter.rotationDirection = expPreset.randomRotationDirection ? (Random.value > 0.5f ? 1f : -1f) : 1f;
+                
+                currentLetterIndex++;
+            }
+        }
+        
+        _isFastDisappearing = true;
+        _isExploding = true;
+        _targetCharCount = 0;
+        _currentVisibleCharsFloat = 0f;
+        
+        // Рассчитываем время окончания взрыва:
+        // maxFlightTime = (letterCount - 1) * staggerDelay + flightDuration * (1 + randomness) + buffer
+        int totalExplodingLetters = currentLetterIndex;
+        float maxStaggerTime = (totalExplodingLetters > 0 ? (totalExplodingLetters - 1) : 0) * expPreset.staggerDelay;
+        float maxFlightDuration = expPreset.flightDuration * (1f + expPreset.flightDurationRandomness);
+        float buffer = 0.1f; // Дополнительный буфер на всякий случай
+        _explosionEndTime = Time.time + maxStaggerTime + maxFlightDuration + buffer;
+        
+        Debug.Log($"[TextAnimator] Explosion started: {totalExplodingLetters} letters, endTime={_explosionEndTime - Time.time}s from now");
+        
+        // Убедимся что все символы видимы во время взрыва
+        if (_textComponent != null)
+        {
+            _textComponent.maxVisibleCharacters = _textToAnimate?.Length ?? 99999;
+        }
+    }
+    
+    /// <summary>
+    /// Distribute letters proportionally to resource changes.
+    /// </summary>
+    private int[] DistributeLettersToIcons(int[] changes)
+    {
+        int totalLetters = 0;
+        if (_letterData != null)
+        {
+            foreach (var ld in _letterData)
+            {
+                if (ld.state != LetterState.Hidden) totalLetters++;
+            }
+        }
+        
+        if (totalLetters == 0) return new int[4];
+        
+        // Calculate total absolute change
+        int totalChange = 0;
+        foreach (var c in changes) totalChange += Mathf.Abs(c);
+        
+        if (totalChange == 0) return new int[4];
+        
+        // Proportional distribution
+        int[] result = new int[4];
+        int assigned = 0;
+        
+        for (int i = 0; i < 4; i++)
+        {
+            float proportion = (float)Mathf.Abs(changes[i]) / totalChange;
+            result[i] = Mathf.RoundToInt(proportion * totalLetters);
+            assigned += result[i];
+        }
+        
+        // Fix rounding errors - add/remove from largest change
+        while (assigned != totalLetters)
+        {
+            int maxIdx = 0;
+            for (int i = 1; i < 4; i++)
+                if (Mathf.Abs(changes[i]) > Mathf.Abs(changes[maxIdx])) maxIdx = i;
+                
+            if (assigned < totalLetters) { result[maxIdx]++; assigned++; }
+            else if (result[maxIdx] > 0) { result[maxIdx]--; assigned--; }
+            else break; // Safety
+        }
+        
+        return result;
+    }
+    
+    /// <summary>
+    /// Get world positions of all visible letters.
+    /// </summary>
+    private Vector2[] GetLetterWorldPositions()
+    {
+        Vector2[] positions = new Vector2[_letterData.Length];
+        
+        _textComponent.ForceMeshUpdate();
+        TMP_TextInfo textInfo = _textComponent.textInfo;
+        
+        for (int i = 0; i < _letterData.Length && i < textInfo.characterCount; i++)
+        {
+            TMP_CharacterInfo charInfo = textInfo.characterInfo[i];
+            if (!charInfo.isVisible) 
+            {
+                positions[i] = (Vector2)transform.position;
+                continue;
+            }
+            
+            // Get character center in world space
+            int vertIdx = charInfo.vertexIndex;
+            int matIdx = charInfo.materialReferenceIndex;
+            Vector3[] verts = textInfo.meshInfo[matIdx].vertices;
+            
+            if (vertIdx + 3 < verts.Length)
+            {
+                Vector3 localCenter = (verts[vertIdx] + verts[vertIdx + 1] + verts[vertIdx + 2] + verts[vertIdx + 3]) * 0.25f;
+                // Apply current letter offset
+                localCenter += new Vector3(_letterData[i].currentOffset.x, _letterData[i].currentOffset.y, 0);
+                positions[i] = transform.TransformPoint(localCenter);
+            }
+            else
+            {
+                positions[i] = (Vector2)transform.position;
+            }
+        }
+        
+        return positions;
+    }
+    
+    /// <summary>
+    /// Quadratic Bezier curve interpolation.
+    /// </summary>
+    private static Vector2 BezierPoint(Vector2 p0, Vector2 p1, Vector2 p2, float t)
+    {
+        float u = 1 - t;
+        return u * u * p0 + 2 * u * t * p1 + t * t * p2;
     }
 
     #endregion
@@ -495,9 +750,25 @@ public class TextAnimator : MonoBehaviour
                 }
             }
             
-            if (allHidden)
+            // Не сбрасываем флаги пока не прошло достаточно времени И все буквы не скрыты
+            if (allHidden && Time.time >= _explosionEndTime)
             {
+                bool wasExploding = _isExploding;
                 _isFastDisappearing = false;
+                _isExploding = false;
+                _explosionEndTime = 0f;
+                
+                // Теперь можно безопасно очистить текст
+                _textToAnimate = "";
+                _textComponent.text = "";
+                
+                Debug.Log($"[TextAnimator] Explosion complete, text cleared");
+                
+                // Вызываем callback если был взрыв
+                if (wasExploding)
+                {
+                    OnExplosionComplete?.Invoke();
+                }
             }
             return;
         }
@@ -640,6 +911,70 @@ public class TextAnimator : MonoBehaviour
                         newState = LetterState.Hidden;
                     }
                     break;
+                    
+                case LetterState.Exploding:
+                    if (preset?.explosionPreset != null)
+                    {
+                        var exp = preset.explosionPreset;
+                        
+                        // Account for stagger delay
+                        float activeTime = letter.stateTime - letter.flightDelay;
+                        
+                        if (activeTime < 0)
+                        {
+                            // Still waiting - keep at current position with current values
+                            result.scale = letter.currentScale;
+                            result.alpha = letter.currentAlpha;
+                            result.offset = letter.currentOffset;
+                            result.rotation = letter.currentRotation;
+                        }
+                        else
+                        {
+                            float flightT = Mathf.Clamp01(activeTime / letter.flightDuration);
+                            float curvedT = exp.positionCurve.Evaluate(flightT);
+                            
+                            // Bezier curve interpolation for world position
+                            Vector2 worldPos = BezierPoint(letter.startWorldPos, letter.controlPoint, letter.targetWorldPos, curvedT);
+                            
+                            // Calculate offset by converting world delta to local delta
+                            // worldPos is where the letter should be in world space
+                            // startWorldPos is where it started in world space
+                            // The delta in world space needs to be converted to local space
+                            Vector2 worldDelta = worldPos - letter.startWorldPos;
+                            
+                            // Convert world delta to local delta (accounting for parent rotation/scale)
+                            Vector3 localDelta = transform.InverseTransformVector(new Vector3(worldDelta.x, worldDelta.y, 0));
+                            
+                            // Add delta to the previous offset (where letter was when explosion started)
+                            result.offset = letter.prevOffset + new Vector2(localDelta.x, localDelta.y);
+                            
+                            // Scale
+                            result.scale = Mathf.Lerp(exp.initialScale, exp.finalScale, exp.scaleCurve.Evaluate(flightT));
+                            
+                            // Alpha
+                            result.alpha = exp.alphaCurve.Evaluate(flightT);
+                            
+                            // Rotation
+                            result.rotation = letter.prevRotation + activeTime * exp.rotationSpeed * letter.rotationDirection;
+                            
+                            // Check arrival and fire callback
+                            if (flightT >= 1f)
+                            {
+                                if (!letter.arrivalCallbackFired)
+                                {
+                                    letter.arrivalCallbackFired = true;
+                                    _explosionArrivalCallback?.Invoke(letter.targetIconIndex);
+                                }
+                                newState = LetterState.Hidden;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // No preset - just hide
+                        newState = LetterState.Hidden;
+                    }
+                    break;
             }
             
             // Проверяем смену состояния (кроме переходов между Idle/Active/Selected - они плавные через progress)
@@ -672,17 +1007,30 @@ public class TextAnimator : MonoBehaviour
             Vector2 targetOffset = Vector2.Lerp(letter.prevOffset, result.offset, smoothT);
             float targetRotation = Mathf.Lerp(letter.prevRotation, result.rotation, smoothT);
             
-            // Для быстрых disappear режимов (Return/Selected) используем более быструю интерполяцию
-            // чтобы анимация была чёткой и синхронной
+            // Для быстрых режимов (Return/Selected/Exploding) используем более быструю интерполяцию
+            // Для Exploding - прямое применение без сглаживания для точного следования траектории
+            bool isExploding = letter.state == LetterState.Exploding;
             bool isFastDisappear = letter.state == LetterState.DisappearingReturn || 
                                    letter.state == LetterState.DisappearingSelected;
-            float effectiveSmooth = isFastDisappear ? 50f : EffectSmoothSpeed;
             
-            // Дополнительная интерполяция для сглаживания резких изменений в самих эффектах
-            letter.currentScale = Mathf.Lerp(letter.currentScale, targetScale, dt * effectiveSmooth);
-            letter.currentAlpha = Mathf.Lerp(letter.currentAlpha, targetAlpha, dt * effectiveSmooth);
-            letter.currentOffset = Vector2.Lerp(letter.currentOffset, targetOffset, dt * effectiveSmooth);
-            letter.currentRotation = Mathf.Lerp(letter.currentRotation, targetRotation, dt * effectiveSmooth);
+            if (isExploding)
+            {
+                // Прямое применение значений для точного следования траектории Bezier
+                letter.currentScale = result.scale;
+                letter.currentAlpha = result.alpha;
+                letter.currentOffset = result.offset;
+                letter.currentRotation = result.rotation;
+            }
+            else
+            {
+                float effectiveSmooth = isFastDisappear ? 50f : EffectSmoothSpeed;
+                
+                // Дополнительная интерполяция для сглаживания резких изменений в самих эффектах
+                letter.currentScale = Mathf.Lerp(letter.currentScale, targetScale, dt * effectiveSmooth);
+                letter.currentAlpha = Mathf.Lerp(letter.currentAlpha, targetAlpha, dt * effectiveSmooth);
+                letter.currentOffset = Vector2.Lerp(letter.currentOffset, targetOffset, dt * effectiveSmooth);
+                letter.currentRotation = Mathf.Lerp(letter.currentRotation, targetRotation, dt * effectiveSmooth);
+            }
         }
     }
 
