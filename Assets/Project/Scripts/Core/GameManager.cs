@@ -192,6 +192,37 @@ public class GameManager : MonoBehaviour
         if (shuffleText != null) shuffleText.text = "Тасовка " + _currentShuffle;
     }
     
+    /// <summary>
+    /// Применяет изменения ресурсов БЕЗ визуальных эффектов.
+    /// Используется когда эффекты применяются побуквенно через ReceiveLetterWithFill.
+    /// </summary>
+    public void ApplyCardEffectInstant(int dSpades, int dHearts, int dDiamonds, int dClubs)
+    {
+        // Ограничиваем статы от 0 до 100
+        spades = Mathf.Clamp(spades + dSpades, 0, 100);
+        hearts = Mathf.Clamp(hearts + dHearts, 0, 100);
+        diamonds = Mathf.Clamp(diamonds + dDiamonds, 0, 100);
+        clubs = Mathf.Clamp(clubs + dClubs, 0, 100);
+
+        if (CheckGameOver()) return;
+
+        // Увеличиваем счётчик карт в текущей тасовке
+        _cardsInShuffle++;
+        
+        // Проверяем переход к новой Тасовке
+        if (_cardsInShuffle >= cardsPerShuffle)
+        {
+            _currentShuffle++;
+            _cardsInShuffle = 0;
+            OnNewShuffle();
+        }
+        
+        // Обновляем текст тасовки
+        if (shuffleText != null) shuffleText.text = "Тасовка " + _currentShuffle;
+        
+        // НЕ вызываем ApplyJuicyEffect - эффекты применяются побуквенно
+    }
+    
     void ApplyJuicyEffect(LiquidFillIcon icon, int oldValue, int newValue, int delta)
     {
         if (icon == null) return;
@@ -211,8 +242,8 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            // No change - just animate fill
-            icon.AnimateFillTo(newFill);
+            // No change - do nothing, don't touch fill or trailing
+            return;
         }
         
         // Critical glow is handled automatically by UpdateCriticalGlow in LiquidFillIcon.Update()

@@ -69,6 +69,12 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     float CriticalLowThreshold => effectPreset != null ? effectPreset.criticalLowThreshold : 0.1f;
     float CriticalHighThreshold => effectPreset != null ? effectPreset.criticalHighThreshold : 0.9f;
     
+    // Per-letter effect properties
+    float LetterEffectIntensity => effectPreset != null ? effectPreset.letterEffectIntensity : 0.25f;
+    float LetterSplashIntensity => effectPreset != null ? effectPreset.letterSplashIntensity : 0.1f;
+    float LetterShakeIntensity => effectPreset != null ? effectPreset.letterShakeIntensity : 2f;
+    float LetterPunchScale => effectPreset != null ? effectPreset.letterPunchScale : 0.03f;
+    
     // Runtime shadow tracking
     private Vector2 _currentShadowOffset;
     
@@ -89,6 +95,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     
     // Trailing fill (delayed damage indicator)
     private float trailingFill = 1f;
+    private float _trailingDelayTimer = 0f; // Timer before trailing starts following
     
     // Idle and follow tracking
     private float _idleTime;
@@ -168,6 +175,23 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         
         // Auto glow when resource is critical (<=10% or >=90%)
         UpdateCriticalGlow();
+        
+        // Trailing delay countdown
+        if (_trailingDelayTimer > 0f)
+        {
+            _trailingDelayTimer -= Time.deltaTime;
+        }
+        
+        // Trailing fill follows actual fill with lerp ONLY after delay has passed
+        if (_trailingDelayTimer <= 0f && Mathf.Abs(trailingFill - fillAmount) > 0.001f)
+        {
+            // Lerp speed - 5f means it takes ~0.2s to catch up
+            trailingFill = Mathf.Lerp(trailingFill, fillAmount, Time.deltaTime * 5f);
+        }
+        else if (_trailingDelayTimer <= 0f && Mathf.Abs(trailingFill - fillAmount) <= 0.001f)
+        {
+            trailingFill = fillAmount; // Snap when close enough
+        }
         
         ApplyIdleAndFollowEffect();
     }
@@ -938,31 +962,62 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         glowIntensity = 0;
         shakeIntensity = 0;
     }
-    
-    // =====================================================
-    // === LETTER EXPLOSION RECEIVER ===
-    // =====================================================
-    
     /// <summary>
     /// Called when a letter "arrives" at this icon during explosion effect.
-    /// Triggers a small visual feedback (glow burst + scale punch + splash).
+    /// Applies a portion of fill change with increase/decrease effect.
+    /// All values are taken from IconEffectPreset.
     /// </summary>
-    /// <param name="arrivalGlow">Glow intensity to add</param>
-    /// <param name="arrivalPunch">Scale punch amount</param>
-    /// <param name="arrivalSplash">Splash intensity to add</param>
-    public void ReceiveLetter(float arrivalGlow = 0.3f, float arrivalPunch = 0.05f, float arrivalSplash = 0.2f)
+    /// <param name="fillDelta">Delta to add to fillAmount (can be positive or negative)</param>
+    public void ReceiveLetterWithFill(float fillDelta)
     {
-        // Accumulate glow (capped)
-        glowIntensity = Mathf.Min(glowIntensity + arrivalGlow, 1.5f);
+        // Calculate new fill target
+        float newFill = Mathf.Clamp01(fillAmount + fillDelta);
+        
+        // Animate fill change smoothly
+        _fillTween?.Kill();
+        _fillTween = DOTween.To(() => fillAmount, x => fillAmount = x, newFill, 0.15f)
+            .SetEase(Ease.OutQuad);
+        
+        // Apply increase/decrease effect based on fillDelta direction
+        if (fillDelta > 0)
+        {
+            // INCREASE - add white highlight (positive effectIntensity)
+            effectIntensity = Mathf.Min(effectIntensity + LetterEffectIntensity, 1.5f);
+        }
+        else if (fillDelta < 0)
+        {
+            // DECREASE - add darken effect (negative effectIntensity) + shake
+            effectIntensity = Mathf.Max(effectIntensity - LetterEffectIntensity, -1.5f);
+            shakeIntensity = Mathf.Min(shakeIntensity + LetterShakeIntensity, 15f);
+        }
         
         // Accumulate splash (capped)
-        splashIntensity = Mathf.Min(splashIntensity + arrivalSplash, 0.8f);
+        splashIntensity = Mathf.Min(splashIntensity + LetterSplashIntensity, 0.8f);
         
-        // Mini scale punch (kill previous to restart)
+        // Reset trailing delay on each letter - trailing waits X seconds after LAST letter
+        _trailingDelayTimer = TrailingDelay;
+        
+        // Mini scale punch
         if (_rectTransform != null)
         {
             DOTween.Kill(_rectTransform, true);
-            _rectTransform.DOPunchScale(Vector3.one * arrivalPunch, 0.15f, 5, 0.5f);
+            _rectTransform.DOPunchScale(Vector3.one * LetterPunchScale, 0.12f, 5, 0.5f);
         }
+    }
+    
+    /// <summary>
+    /// Fade out accumulated effects after all letters have arrived.
+    /// Sets delay timer for trailing fill to start following.
+    /// </summary>
+    /// <param name="targetFill">Not used - trailing now follows fill via Update lerp</param>
+    /// <param name="duration">Duration for effect fadeout</param>
+    public void FadeOutArrivalEffects(float targetFill, float duration = 0.4f)
+    {
+        DOTween.To(() => effectIntensity, x => effectIntensity = x, 0f, duration).SetEase(Ease.OutQuad);
+        DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, duration * 0.8f);
+        DOTween.To(() => splashIntensity, x => splashIntensity = x, 0f, duration * 1.5f);
+        
+        // Set trailing delay - trailing will start following after this delay
+        _trailingDelayTimer = TrailingDelay;
     }
 }

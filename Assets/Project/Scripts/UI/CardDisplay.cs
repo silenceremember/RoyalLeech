@@ -699,42 +699,103 @@ public class CardDisplay : MonoBehaviour
                     gm.clubsIcon != null ? (Vector2)gm.clubsIcon.transform.position : Vector2.zero
                 };
                 
-                // Get explosion preset for arrival effect values
-                var expPreset = actionAnimator.preset.explosionPreset;
+                // Calculate how many letters will fly to each icon
+                int totalLetters = actionAnimator.VisibleCharacters;
+                if (totalLetters <= 0) totalLetters = actionAnimator.CurrentText?.Length ?? 1;
                 
-                // Trigger explosion with callback
+                // Calculate total absolute change for proportional distribution
+                int totalChange = 0;
+                foreach (var c in changes) totalChange += Mathf.Abs(c);
+                
+                // Letter counts per icon (same algorithm as in TextAnimator.DistributeLettersToIcons)
+                int[] letterCounts = new int[4];
+                int assigned = 0;
+                for (int i = 0; i < 4; i++)
+                {
+                    float proportion = totalChange > 0 ? (float)Mathf.Abs(changes[i]) / totalChange : 0f;
+                    letterCounts[i] = Mathf.RoundToInt(proportion * totalLetters);
+                    assigned += letterCounts[i];
+                }
+                // Fix rounding
+                while (assigned != totalLetters && totalChange > 0)
+                {
+                    int maxIdx = 0;
+                    for (int i = 1; i < 4; i++)
+                        if (Mathf.Abs(changes[i]) > Mathf.Abs(changes[maxIdx])) maxIdx = i;
+                    if (assigned < totalLetters) { letterCounts[maxIdx]++; assigned++; }
+                    else if (letterCounts[maxIdx] > 0) { letterCounts[maxIdx]--; assigned--; }
+                    else break;
+                }
+                
+                // Calculate fill delta per letter for each icon
+                // Fill is 0-1, change is -100 to 100
+                float[] fillDeltaPerLetter = new float[4];
+                float[] finalFillValues = new float[4]; // Final fill values for trailing
+                int[] currentResourceValues = new int[] { gm.spades, gm.hearts, gm.diamonds, gm.clubs };
+                
+                for (int i = 0; i < 4; i++)
+                {
+                    // Calculate final fill value after all changes
+                    int newValue = Mathf.Clamp(currentResourceValues[i] + changes[i], 0, 100);
+                    finalFillValues[i] = newValue / 100f;
+                    
+                    if (letterCounts[i] > 0)
+                    {
+                        // Total fill change = changes[i] / 100f, distributed across letterCounts[i] letters
+                        fillDeltaPerLetter[i] = (changes[i] / 100f) / letterCounts[i];
+                    }
+                }
+                
+                // Store icon references for callback
+                LiquidFillIcon[] icons = new LiquidFillIcon[] { gm.spadesIcon, gm.heartsIcon, gm.diamondsIcon, gm.clubsIcon };
+                
+                // Track arrival count to fade out effects when all letters arrive
+                int[] arrivalCounts = new int[4];
+                
+                // Trigger explosion with callback that applies per-letter fill
+                // Effect settings come from IconEffectPreset on each icon
                 actionAnimator.TriggerExplosion(changes, iconPositions, (iconIndex) =>
                 {
-                    // Letter arrived - trigger mini effect on icon
-                    LiquidFillIcon icon = iconIndex switch
+                    // Letter arrived - apply fill delta with effect
+                    LiquidFillIcon icon = icons[iconIndex];
+                    if (icon != null && fillDeltaPerLetter[iconIndex] != 0f)
                     {
-                        0 => gm.spadesIcon,
-                        1 => gm.heartsIcon,
-                        2 => gm.diamondsIcon,
-                        3 => gm.clubsIcon,
-                        _ => null
-                    };
-                    icon?.ReceiveLetter(
-                        expPreset.arrivalGlowBurst,
-                        expPreset.arrivalPunchScale,
-                        expPreset.arrivalSplash
-                    );
+                        icon.ReceiveLetterWithFill(fillDeltaPerLetter[iconIndex]);
+                    }
+                    
+                    // Track arrivals
+                    arrivalCounts[iconIndex]++;
+                    
+                    // Check if all letters for this icon have arrived
+                    if (arrivalCounts[iconIndex] >= letterCounts[iconIndex] && icon != null)
+                    {
+                        // Pass FINAL fill value for trailing animation
+                        icon.FadeOutArrivalEffects(finalFillValues[iconIndex], 0.4f);
+                    }
                 });
+                
+                // Update game state immediately (values will animate visually)
+                gm.ApplyCardEffectInstant(changes[0], changes[1], changes[2], changes[3]);
             }
             else
             {
                 // No changes or no explosion preset - normal disappear
                 actionAnimator.TriggerSelected();
+                
+                // Apply effect normally
+                if (isRight) GameManager.Instance.ApplyCardEffect(CurrentData.rightSpades, CurrentData.rightHearts, CurrentData.rightDiamonds, CurrentData.rightClubs);
+                else GameManager.Instance.ApplyCardEffect(CurrentData.leftSpades, CurrentData.leftHearts, CurrentData.leftDiamonds, CurrentData.leftClubs);
             }
         }
         else if (actionText)
         {
             actionText.text = "";
             actionText.maxVisibleCharacters = 0;
+            
+            // Apply effect normally
+            if (isRight) GameManager.Instance.ApplyCardEffect(CurrentData.rightSpades, CurrentData.rightHearts, CurrentData.rightDiamonds, CurrentData.rightClubs);
+            else GameManager.Instance.ApplyCardEffect(CurrentData.leftSpades, CurrentData.leftHearts, CurrentData.leftDiamonds, CurrentData.leftClubs);
         }
-
-        if (isRight) GameManager.Instance.ApplyCardEffect(CurrentData.rightSpades, CurrentData.rightHearts, CurrentData.rightDiamonds, CurrentData.rightClubs);
-        else GameManager.Instance.ApplyCardEffect(CurrentData.leftSpades, CurrentData.leftHearts, CurrentData.leftDiamonds, CurrentData.leftClubs);
 
         float endX = isRight ? 1500f : -1500f;
         float endRotation = isRight ? -45f : 45f;

@@ -63,17 +63,4 @@ public class LetterExplosionPreset : ScriptableObject
         new Keyframe(0.7f, 1f),
         new Keyframe(1f, 0f)
     );
-    
-    [Header("=== ICON FEEDBACK ===")]
-    [Tooltip("Сила glow burst при получении буквы")]
-    [Range(0, 1)]
-    public float arrivalGlowBurst = 0.3f;
-    
-    [Tooltip("Сила scale punch при получении буквы")]
-    [Range(0, 0.2f)]
-    public float arrivalPunchScale = 0.05f;
-    
-    [Tooltip("Сила splash при получении буквы")]
-    [Range(0, 0.5f)]
-    public float arrivalSplash = 0.2f;
 }

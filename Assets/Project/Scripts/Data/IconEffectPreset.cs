@@ -90,4 +90,17 @@ public class IconEffectPreset : ScriptableObject
     [Header("Critical Glow")]
     [Range(0, 0.3f)] public float criticalLowThreshold = 0.1f;
     [Range(0.7f, 1f)] public float criticalHighThreshold = 0.9f;
+    
+    [Header("Per-Letter Effect (explosion feedback)")]
+    [Tooltip("Сила effect intensity (increase/decrease) за одну букву")]
+    [Range(0.1f, 0.5f)] public float letterEffectIntensity = 0.25f;
+    
+    [Tooltip("Сила splash за одну букву")]
+    [Range(0, 0.3f)] public float letterSplashIntensity = 0.1f;
+    
+    [Tooltip("Сила shake (только для decrease) за одну букву")]
+    [Range(0, 5f)] public float letterShakeIntensity = 2f;
+    
+    [Tooltip("Сила scale punch за одну букву")]
+    [Range(0, 0.1f)] public float letterPunchScale = 0.03f;
 }
