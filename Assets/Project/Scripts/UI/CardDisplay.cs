@@ -120,6 +120,11 @@ public class CardDisplay : MonoBehaviour
     private bool _pendingSetupIsFront = false;
     private bool _pendingAnimateToFront = false;
     
+    // Pending explosion fill data (applied after all letters arrive)
+    private int[] _pendingExplosionChanges = null;
+    private float[] _pendingFinalFillValues = null;
+    private bool[] _pendingIsIncrease = null;
+    
     // Canvas group for action text opacity control
     private CanvasGroup _actionTextCanvasGroup;
     
@@ -173,7 +178,28 @@ public class CardDisplay : MonoBehaviour
     
     private void OnExplosionCompleteHandler()
     {
-        // Взрыв завершился - выполняем отложенный Setup если есть
+        // Взрыв завершился - применяем fill ко ВСЕМ ресурсам с изменениями
+        if (_pendingExplosionChanges != null && _pendingFinalFillValues != null && _pendingIsIncrease != null)
+        {
+            var gm = GameManager.Instance;
+            LiquidFillIcon[] icons = new LiquidFillIcon[] { gm.spadesIcon, gm.heartsIcon, gm.diamondsIcon, gm.clubsIcon };
+            
+            for (int i = 0; i < 4; i++)
+            {
+                if (_pendingExplosionChanges[i] != 0 && icons[i] != null)
+                {
+                    // Apply FINAL fill value with FULL effect (arithmetically exact)
+                    icons[i].ApplyFinalFillWithEffect(_pendingFinalFillValues[i], _pendingIsIncrease[i], Mathf.Abs(_pendingExplosionChanges[i]));
+                }
+            }
+            
+            // Clear pending data
+            _pendingExplosionChanges = null;
+            _pendingFinalFillValues = null;
+            _pendingIsIncrease = null;
+        }
+        
+        // Выполняем отложенный Setup если есть
         if (_pendingSetupData != null)
         {
             var data = _pendingSetupData;
@@ -752,11 +778,10 @@ public class CardDisplay : MonoBehaviour
                     else break;
                 }
                 
-                // Calculate fill delta per letter for each icon
-                // Fill is 0-1, change is -100 to 100
-                float[] fillDeltaPerLetter = new float[4];
-                float[] effectMultiplierPerLetter = new float[4]; // Tier-based effect per letter
-                float[] finalFillValues = new float[4]; // Final fill values for trailing
+                // Calculate tier-based effect multiplier for each icon
+                float[] effectMultiplierPerLetter = new float[4];
+                float[] finalFillValues = new float[4]; // Final fill values
+                bool[] isIncrease = new bool[4]; // Track direction for each icon
                 int[] currentResourceValues = new int[] { gm.spades, gm.hearts, gm.diamonds, gm.clubs };
                 
                 // Store icon references (needed for tier calculation and callback)
@@ -767,12 +792,10 @@ public class CardDisplay : MonoBehaviour
                     // Calculate final fill value after all changes
                     int newValue = Mathf.Clamp(currentResourceValues[i] + changes[i], 0, 100);
                     finalFillValues[i] = newValue / 100f;
+                    isIncrease[i] = changes[i] > 0;
                     
                     if (letterCounts[i] > 0)
                     {
-                        // Total fill change = changes[i] / 100f, distributed across letterCounts[i] letters
-                        fillDeltaPerLetter[i] = (changes[i] / 100f) / letterCounts[i];
-                        
                         // Calculate tier multiplier based on absolute change
                         LiquidFillIcon icon = icons[i];
                         if (icon != null && icon.effectPreset != null)
@@ -788,7 +811,7 @@ public class CardDisplay : MonoBehaviour
                             else
                                 tierMultiplier = 1f; // Normal
                             
-                            // Each letter applies FULL tier effect (not 1/N)
+                            // Each letter applies FULL tier effect
                             effectMultiplierPerLetter[i] = tierMultiplier;
                         }
                         else
@@ -798,28 +821,22 @@ public class CardDisplay : MonoBehaviour
                     }
                 }
                 
-                // Track arrival count to fade out effects when all letters arrive
-                int[] arrivalCounts = new int[4];
+                // Store pending data for OnExplosionCompleteHandler
+                // This ensures fill is applied for ALL resources after explosion, not just those with letters
+                _pendingExplosionChanges = changes;
+                _pendingFinalFillValues = finalFillValues;
+                _pendingIsIncrease = isIncrease;
                 
-                // Trigger explosion with callback that applies per-letter fill
+                // Trigger explosion with callback that plays per-letter VISUAL effect only (no fill change)
                 actionAnimator.TriggerExplosion(changes, iconPositions, (iconIndex) =>
                 {
-                    // Letter arrived - apply fill delta with tier-based effect
+                    // Letter arrived - play visual effect only (no fill change)
                     LiquidFillIcon icon = icons[iconIndex];
-                    if (icon != null && fillDeltaPerLetter[iconIndex] != 0f)
+                    if (icon != null && changes[iconIndex] != 0)
                     {
-                        icon.ReceiveLetterWithFill(fillDeltaPerLetter[iconIndex], effectMultiplierPerLetter[iconIndex]);
+                        icon.ReceiveLetterEffect(isIncrease[iconIndex], effectMultiplierPerLetter[iconIndex]);
                     }
-                    
-                    // Track arrivals
-                    arrivalCounts[iconIndex]++;
-                    
-                    // Check if all letters for this icon have arrived
-                    if (arrivalCounts[iconIndex] >= letterCounts[iconIndex] && icon != null)
-                    {
-                        // Pass FINAL fill value for trailing animation
-                        icon.FadeOutArrivalEffects(finalFillValues[iconIndex]);
-                    }
+                    // Fill will be applied in OnExplosionCompleteHandler after ALL letters arrive
                 });
                 
                 // Update game state immediately (values will animate visually)

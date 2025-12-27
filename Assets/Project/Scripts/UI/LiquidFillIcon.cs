@@ -53,7 +53,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     float MinorMultiplier => effectPreset != null ? effectPreset.minorMultiplier : 0.5f;
     float MajorMultiplier => effectPreset != null ? effectPreset.majorMultiplier : 1.5f;
     float EffectDuration => effectPreset != null ? effectPreset.effectDuration : 0.8f;
-    float EffectFadeDuration => effectPreset != null ? effectPreset.effectFadeDuration : 0.6f;
+    float LetterEffectDuration => effectPreset != null ? effectPreset.letterEffectDuration : 0.6f;
     float PulseSpeed => effectPreset != null ? effectPreset.pulseSpeed : 4f;
     float TrailingDelay => effectPreset != null ? effectPreset.trailingDelay : 0.8f;
     float TrailingDuration => effectPreset != null ? effectPreset.trailingDuration : 0.5f;
@@ -178,13 +178,15 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         }
         
         // Trailing fill follows actual fill ONLY after delay has passed
-        if (_trailingDelayTimer <= 0f && Mathf.Abs(trailingFill - fillAmount) > 0.001f)
+        // AND only if no tween is controlling trailing (PlayGainEffect/PlayLossEffect use tween)
+        bool trailingTweenActive = _trailingTween != null && _trailingTween.IsActive() && _trailingTween.IsPlaying();
+        if (!trailingTweenActive && _trailingDelayTimer <= 0f && Mathf.Abs(trailingFill - fillAmount) > 0.001f)
         {
             // MoveTowards with speed = 1.0 / TrailingDuration (so 0.5f duration = 2 units/sec)
             float speed = 1f / TrailingDuration;
             trailingFill = Mathf.MoveTowards(trailingFill, fillAmount, Time.deltaTime * speed);
         }
-        else if (_trailingDelayTimer <= 0f && Mathf.Abs(trailingFill - fillAmount) <= 0.001f)
+        else if (!trailingTweenActive && _trailingDelayTimer <= 0f && Mathf.Abs(trailingFill - fillAmount) <= 0.001f)
         {
             trailingFill = fillAmount; // Snap when close enough
         }
@@ -959,65 +961,65 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     }
     /// <summary>
     /// Called when a letter "arrives" at this icon during explosion effect.
-    /// Applies a portion of fill change with increase/decrease effect.
+    /// Plays visual increase/decrease effect WITHOUT modifying fill.
     /// </summary>
-    /// <param name="fillDelta">Delta to add to fillAmount (can be positive or negative)</param>
-    /// <param name="effectMultiplier">Effect multiplier for this letter (tier * 1/letterCount)</param>
-    public void ReceiveLetterWithFill(float fillDelta, float effectMultiplier)
+    /// <param name="isIncrease">True for gain effect, false for loss effect</param>
+    /// <param name="effectMultiplier">Effect multiplier (tier-based)</param>
+    public void ReceiveLetterEffect(bool isIncrease, float effectMultiplier)
     {
-        // Calculate new fill target
-        float newFill = Mathf.Clamp01(fillAmount + fillDelta);
+        float duration = LetterEffectDuration;
         
-        // Animate fill change smoothly
-        _fillTween?.Kill();
-        _fillTween = DOTween.To(() => fillAmount, x => fillAmount = x, newFill, 0.15f)
-            .SetEase(Ease.OutQuad);
-        
-        // Apply increase/decrease effect based on fillDelta direction
-        // effectMultiplier already includes tier scaling
-        // NOTE: No splash here - splash plays ONCE in FadeOutArrivalEffects to avoid duplicate wave effects
-        if (fillDelta > 0)
+        // Apply increase/decrease visual effect
+        if (isIncrease)
         {
             // INCREASE - add white highlight (positive effectIntensity)
             effectIntensity = Mathf.Min(effectIntensity + IncreaseStrength * effectMultiplier, 1.5f);
+            
+            // Scale punch (grow)
+            if (_rectTransform != null)
+            {
+                DOTween.Kill(_rectTransform, true);
+                _rectTransform.DOPunchScale(Vector3.one * IncreasePunchScale * effectMultiplier, duration * 0.5f, 5, 0.5f);
+            }
         }
-        else if (fillDelta < 0)
+        else
         {
             // DECREASE - add darken effect (negative effectIntensity) + shake
             effectIntensity = Mathf.Max(effectIntensity - DecreaseStrength * effectMultiplier, -1.5f);
             shakeIntensity = Mathf.Min(shakeIntensity + LossShakeIntensity * effectMultiplier * 0.3f, 15f);
+            
+            // Scale punch (shrink)
+            if (_rectTransform != null)
+            {
+                DOTween.Kill(_rectTransform, true);
+                _rectTransform.DOPunchScale(Vector3.one * -DecreasePunchScale * effectMultiplier, duration * 0.5f, 5, 0.5f);
+            }
         }
         
-        // Reset trailing delay on each letter - trailing waits X seconds after LAST letter
-        _trailingDelayTimer = TrailingDelay;
-        
-        // Mini scale punch (scaled by effectMultiplier)
-        if (_rectTransform != null)
+        // Fade out effect intensity after letterEffectDuration
+        DOTween.To(() => effectIntensity, x => effectIntensity = x, 0f, duration).SetEase(Ease.OutQuad);
+        if (!isIncrease)
         {
-            float punchScale = (fillDelta > 0 ? IncreasePunchScale : DecreasePunchScale) * effectMultiplier;
-            DOTween.Kill(_rectTransform, true);
-            _rectTransform.DOPunchScale(Vector3.one * punchScale, 0.12f, 5, 0.5f);
+            DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, duration * 0.8f);
         }
     }
     
     /// <summary>
-    /// Fade out accumulated effects after all letters have arrived.
-    /// Uses effectFadeDuration from preset. Triggers splash effect once.
+    /// Apply final fill change with full effect after all letters have arrived.
+    /// Changes fillAmount to exact finalFill value + plays full increase/decrease effect.
     /// </summary>
-    /// <param name="targetFill">Not used - trailing now follows fill via Update lerp</param>
-    /// <param name="durationOverride">Optional: override duration (uses EffectFadeDuration from preset if <= 0)</param>
-    public void FadeOutArrivalEffects(float targetFill, float durationOverride = -1f)
+    /// <param name="finalFill">Exact final fill value (0-1)</param>
+    /// <param name="isIncrease">True for gain, false for loss</param>
+    /// <param name="delta">Absolute change amount for tier calculation</param>
+    public void ApplyFinalFillWithEffect(float finalFill, bool isIncrease, int delta)
     {
-        float duration = durationOverride > 0 ? durationOverride : EffectFadeDuration;
-        
-        // Trigger splash ONCE when all letters have arrived
-        splashIntensity = 0.6f;
-        
-        DOTween.To(() => effectIntensity, x => effectIntensity = x, 0f, duration).SetEase(Ease.OutQuad);
-        DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, duration * 0.8f);
-        DOTween.To(() => splashIntensity, x => splashIntensity = x, 0f, duration * 1.5f).SetEase(Ease.InOutSine);
-        
-        // Set trailing delay - trailing will start following after this delay
-        _trailingDelayTimer = TrailingDelay;
+        if (isIncrease)
+        {
+            PlayGainEffect(finalFill, delta);
+        }
+        else
+        {
+            PlayLossEffect(finalFill, delta);
+        }
     }
 }
