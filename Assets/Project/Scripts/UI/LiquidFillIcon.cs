@@ -26,6 +26,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     [Range(0, 20)] public float shakeIntensity = 0f;
     [Range(0, 1)] public float liquidTurbulence = 0f;
     [Range(0, 1)] public float bubbleIntensity = 0f;
+    private float _targetBubbleIntensity = 0f; // Target for smooth lerp
     [Range(0, 1)] public float splashIntensity = 0f;
     
     // Colors from preset (with fallbacks)
@@ -109,6 +110,15 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     private float _currentMagnitude; // How much this resource will change (0-1 normalized)
     private float _bubbleSpeedMult = 1f; // Current bubble speed multiplier (tier-based)
     private float _bubbleSizeMult = 1f; // Current bubble size multiplier (tier-based)
+    private float _targetBubbleSpeedMult = 1f; // Target for smooth lerp
+    private float _targetBubbleSizeMult = 1f; // Target for smooth lerp
+    
+    // Bubble context tracking for fade-through-zero transitions
+    private int _lastBubbleDelta = 0; // Last delta value used for bubbles
+    private bool _isBubbleTransitioning = false; // True while fading out before context switch
+    private float _pendingBubbleSpeedMult = 1f; // Speed mult to apply after fade-out
+    private float _pendingBubbleSizeMult = 1f; // Size mult to apply after fade-out
+    private float _pendingBubbleIntensity = 0f; // Intensity to apply after fade-out
     private Vector3 _baseScale = Vector3.one;
     private Quaternion _baseRotation = Quaternion.identity;
     
@@ -173,6 +183,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     {
         liquidTurbulence = 0f;
         bubbleIntensity = 0f;
+        _targetBubbleIntensity = 0f; // Also reset target
         splashIntensity = 0f;
     }
     
@@ -205,6 +216,40 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         {
             trailingFill = fillAmount; // Snap when close enough
         }
+        
+        // Smooth bubble opacity transition with fade-through-zero for context switches
+        if (_isBubbleTransitioning)
+        {
+            // Phase 1: Fade out to zero
+            bubbleIntensity = Mathf.MoveTowards(bubbleIntensity, 0f, Time.deltaTime * 3f); // Fast fade out
+            
+            if (bubbleIntensity <= 0.01f)
+            {
+                // Reached zero - apply new context and start fade in
+                bubbleIntensity = 0f;
+                _targetBubbleSpeedMult = _pendingBubbleSpeedMult;
+                _targetBubbleSizeMult = _pendingBubbleSizeMult;
+                _bubbleSpeedMult = _pendingBubbleSpeedMult; // Instant apply since invisible
+                _bubbleSizeMult = _pendingBubbleSizeMult;
+                _targetBubbleIntensity = _pendingBubbleIntensity;
+                _isBubbleTransitioning = false;
+            }
+        }
+        else
+        {
+            // Normal smooth transition (no context switch)
+            bubbleIntensity = Mathf.MoveTowards(bubbleIntensity, _targetBubbleIntensity, Time.deltaTime * 2f);
+        }
+        
+        // Bubble speed/size multiplier changes - ONLY when bubbles are invisible!
+        // This prevents the "pattern shift" visual glitch
+        if (bubbleIntensity <= 0.01f)
+        {
+            // Bubbles not visible - safe to change speed/size instantly
+            _bubbleSpeedMult = _targetBubbleSpeedMult;
+            _bubbleSizeMult = _targetBubbleSizeMult;
+        }
+        // When bubbles ARE visible, speed/size stay locked at current values
         
         ApplyIdleAndFollowEffect();
     }
@@ -845,7 +890,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     // === LIQUID API ===
     
     public void SetLiquidTurbulence(float value) => liquidTurbulence = Mathf.Clamp01(value);
-    public void SetBubbleIntensity(float value) => bubbleIntensity = Mathf.Clamp01(value);
+    public void SetBubbleIntensity(float value) => _targetBubbleIntensity = Mathf.Clamp01(value); // Use target!
     public void SetSplashIntensity(float value) => splashIntensity = Mathf.Clamp01(value);
     
     private Tween _turbulenceTween;
@@ -863,7 +908,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         
         // Kill turbulence immediately, start splash
         splash.Append(DOTween.To(() => liquidTurbulence, x => liquidTurbulence = x, 0f, duration * 0.1f));
-        splash.Join(DOTween.To(() => bubbleIntensity, x => bubbleIntensity = x, 0f, duration * 0.15f));
+        splash.Join(DOTween.To(() => _targetBubbleIntensity, x => _targetBubbleIntensity = x, 0f, duration * 0.15f)); // Use target!
         splash.Join(DOTween.To(() => splashIntensity, x => splashIntensity = x, targetSplash, duration * 0.08f).SetEase(Ease.OutQuad));
         
         // Splash fades out slowly
@@ -879,7 +924,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     {
         agitation = Mathf.Clamp01(agitation);
         liquidTurbulence = Mathf.Lerp(0f, 0.8f, agitation);
-        bubbleIntensity = Mathf.Lerp(0f, 0.5f, agitation);
+        _targetBubbleIntensity = Mathf.Lerp(0f, 0.5f, agitation); // Use target for smooth lerp
     }
     
     /// <summary>
@@ -890,7 +935,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     {
         _turbulenceTween?.Kill();
         _turbulenceTween = DOTween.To(() => liquidTurbulence, x => liquidTurbulence = x, 0f, duration);
-        DOTween.To(() => bubbleIntensity, x => bubbleIntensity = x, 0f, duration);
+        _targetBubbleIntensity = 0f; // Reset target so Update lerps to 0
         // NOTE: splashIntensity NOT touched here to avoid double-wave effect
     }
     
@@ -924,6 +969,7 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         _previewGlowTween?.Kill();
         _previewPulseTween?.Kill();
         
+        bool wasPreviewActive = _isPreviewActive;
         _isPreviewActive = true;
         
         // Determine effect tier: Minor / Normal / Major
@@ -950,20 +996,51 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
             sizeMult = BubbleSizeNormal;
         }
         
-        // Store tier multipliers for bubble speed/size
-        _bubbleSpeedMult = speedMult;
-        _bubbleSizeMult = sizeMult;
-        
         // Intensity based on swipe progress (0 = far, 1 = at threshold)
         float t = Mathf.Clamp01(swipeProgress);
+        float targetIntensity = Mathf.Lerp(0.1f, 0.4f, t) * tierMultiplier;
+        
+        // Check if context changed (delta sign/magnitude changed)
+        bool contextChanged = (delta != _lastBubbleDelta);
+        
+        if (bubbleIntensity <= 0.01f)
+        {
+            // Bubbles not visible - apply parameters immediately, no transition needed
+            _isBubbleTransitioning = false;
+            _targetBubbleSpeedMult = speedMult;
+            _targetBubbleSizeMult = sizeMult;
+            _bubbleSpeedMult = speedMult;
+            _bubbleSizeMult = sizeMult;
+            _targetBubbleIntensity = targetIntensity;
+        }
+        else if (contextChanged)
+        {
+            // Context changed while bubbles visible - start/continue fade-through-zero
+            _isBubbleTransitioning = true;
+            _pendingBubbleSpeedMult = speedMult;
+            _pendingBubbleSizeMult = sizeMult;
+            _pendingBubbleIntensity = targetIntensity;
+            // Don't update _targetBubbleIntensity - let Update() fade to 0 first
+        }
+        else if (!_isBubbleTransitioning)
+        {
+            // Same context, not transitioning - just update intensity target
+            _targetBubbleIntensity = targetIntensity;
+        }
+        else
+        {
+            // Currently transitioning (context stable) - update pending intensity
+            _pendingBubbleIntensity = targetIntensity;
+        }
+        
+        _lastBubbleDelta = delta;
         
         // Shake - interpolates from 0 to PreviewShakeBase, then scaled by tier
         float baseShake = Mathf.Lerp(0f, PreviewShakeBase, t);
         shakeIntensity = baseShake * tierMultiplier;
         
-        // Liquid agitation - turbulence + bubbles (also scaled by tier)
+        // Liquid agitation - turbulence (no bubbles here, handled above)
         liquidTurbulence = Mathf.Lerp(0.2f, 0.8f, t) * tierMultiplier;
-        bubbleIntensity = Mathf.Lerp(0.1f, 0.4f, t) * tierMultiplier;
     }
     
     /// <summary>
@@ -975,18 +1052,21 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         _isPreviewActive = false;
         
         // Kill existing tweens before creating new ones
-        _previewGlowTween?.Kill();
+        // NOTE: Do NOT reset glow here - glow depends only on critical thresholds
         _previewPulseTween?.Kill();
         
-        _previewGlowTween = DOTween.To(() => glowIntensity, x => glowIntensity = x, 0f, 0.2f);
         _previewPulseTween = DOTween.To(() => pulseIntensity, x => pulseIntensity = x, 0f, 0.2f);
         
         // Fade out shake
         DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, 0.15f);
         
-        // Reset bubble tier multipliers
-        _bubbleSpeedMult = 1f;
-        _bubbleSizeMult = 1f;
+        // Reset bubble transition state
+        _isBubbleTransitioning = false;
+        _lastBubbleDelta = 0;
+        
+        // Reset bubble tier multipliers (as targets for smooth lerp)
+        _targetBubbleSpeedMult = 1f;
+        _targetBubbleSizeMult = 1f;
         
         // Calm liquid back to idle state
         CalmLiquid(0.3f);
