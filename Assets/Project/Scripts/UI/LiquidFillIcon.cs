@@ -32,13 +32,24 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     Color FillColor => colorPreset != null ? colorPreset.fillColor : Color.white;
     Color BackgroundColor => colorPreset != null ? colorPreset.backgroundColor : new Color(0.1f, 0.1f, 0.1f);
     float BackgroundAlpha => colorPreset != null ? colorPreset.backgroundAlpha : 0.7f;
-    Color BubbleColor => colorPreset != null ? colorPreset.bubbleColor : Color.white;
     
     // Values from effect preset (with fallbacks)
     float FillWaveStrength => effectPreset != null ? effectPreset.fillWaveStrength : 0.02f;
     float FillWaveSpeed => effectPreset != null ? effectPreset.fillWaveSpeed : 3f;
     float MeniscusStrength => effectPreset != null ? effectPreset.meniscusStrength : 0.04f;
-    float BubbleSize => effectPreset != null ? effectPreset.bubbleSize : 0.1f;
+    float BubbleSize => effectPreset != null ? effectPreset.bubbleSize : 0.08f;
+    float BubbleDensity => effectPreset != null ? effectPreset.bubbleDensity : 0.4f;
+    float BubbleSpeed => effectPreset != null ? effectPreset.bubbleSpeed : 0.6f;
+    float BubblePixelation => effectPreset != null ? effectPreset.bubblePixelation : 0f;
+    
+    // Bubble tier multipliers
+    float BubbleSpeedMinor => effectPreset != null ? effectPreset.bubbleSpeedMinor : 0.5f;
+    float BubbleSpeedNormal => effectPreset != null ? effectPreset.bubbleSpeedNormal : 1.0f;
+    float BubbleSpeedMajor => effectPreset != null ? effectPreset.bubbleSpeedMajor : 1.5f;
+    float BubbleSizeMinor => effectPreset != null ? effectPreset.bubbleSizeMinor : 0.7f;
+    float BubbleSizeNormal => effectPreset != null ? effectPreset.bubbleSizeNormal : 1.0f;
+    float BubbleSizeMajor => effectPreset != null ? effectPreset.bubbleSizeMajor : 1.2f;
+    
     float PixelDensity => effectPreset != null ? effectPreset.pixelDensity : 0f;
     float IncreaseStrength => effectPreset != null ? effectPreset.increaseStrength : 0.5f;
     float DecreaseStrength => effectPreset != null ? effectPreset.decreaseStrength : 0.5f;
@@ -96,6 +107,8 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     private float _idleTime;
     private Vector2 _cardScreenPosition; // Card position in screen space for 3D look-at
     private float _currentMagnitude; // How much this resource will change (0-1 normalized)
+    private float _bubbleSpeedMult = 1f; // Current bubble speed multiplier (tier-based)
+    private float _bubbleSizeMult = 1f; // Current bubble size multiplier (tier-based)
     private Vector3 _baseScale = Vector3.one;
     private Quaternion _baseRotation = Quaternion.identity;
     
@@ -112,7 +125,9 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     private static readonly int LiquidTurbulenceID = Shader.PropertyToID("_LiquidTurbulence");
     private static readonly int BubbleIntensityID = Shader.PropertyToID("_BubbleIntensity");
     private static readonly int BubbleSizeID = Shader.PropertyToID("_BubbleSize");
-    private static readonly int BubbleColorID = Shader.PropertyToID("_BubbleColor");
+    private static readonly int BubbleDensityID = Shader.PropertyToID("_BubbleDensity");
+    private static readonly int BubbleSpeedID = Shader.PropertyToID("_BubbleSpeed");
+    private static readonly int BubblePixelationID = Shader.PropertyToID("_BubblePixelation");
     private static readonly int SplashIntensityID = Shader.PropertyToID("_SplashIntensity");
     private static readonly int PixelDensityID = Shader.PropertyToID("_PixelDensity");
     
@@ -459,8 +474,10 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         _materialInstance.SetFloat(MeniscusStrengthID, MeniscusStrength);
         _materialInstance.SetFloat(LiquidTurbulenceID, liquidTurbulence);
         _materialInstance.SetFloat(BubbleIntensityID, bubbleIntensity);
-        _materialInstance.SetFloat(BubbleSizeID, BubbleSize);
-        _materialInstance.SetColor(BubbleColorID, BubbleColor);
+        _materialInstance.SetFloat(BubbleSizeID, BubbleSize * _bubbleSizeMult);
+        _materialInstance.SetFloat(BubbleDensityID, BubbleDensity);
+        _materialInstance.SetFloat(BubbleSpeedID, BubbleSpeed * _bubbleSpeedMult);
+        _materialInstance.SetFloat(BubblePixelationID, BubblePixelation);
         _materialInstance.SetFloat(SplashIntensityID, splashIntensity);
         _materialInstance.SetFloat(PixelDensityID, PixelDensity);
         
@@ -912,12 +929,30 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         // Determine effect tier: Minor / Normal / Major
         int absDelta = Mathf.Abs(delta);
         float tierMultiplier;
+        float speedMult;
+        float sizeMult;
         if (absDelta <= MinorThreshold)
+        {
             tierMultiplier = MinorMultiplier;      // Minor effect
+            speedMult = BubbleSpeedMinor;
+            sizeMult = BubbleSizeMinor;
+        }
         else if (absDelta > MajorThreshold)
+        {
             tierMultiplier = MajorMultiplier;      // Major effect
+            speedMult = BubbleSpeedMajor;
+            sizeMult = BubbleSizeMajor;
+        }
         else
+        {
             tierMultiplier = 1f;                   // Normal effect
+            speedMult = BubbleSpeedNormal;
+            sizeMult = BubbleSizeNormal;
+        }
+        
+        // Store tier multipliers for bubble speed/size
+        _bubbleSpeedMult = speedMult;
+        _bubbleSizeMult = sizeMult;
         
         // Intensity based on swipe progress (0 = far, 1 = at threshold)
         float t = Mathf.Clamp01(swipeProgress);
@@ -948,6 +983,10 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         
         // Fade out shake
         DOTween.To(() => shakeIntensity, x => shakeIntensity = x, 0f, 0.15f);
+        
+        // Reset bubble tier multipliers
+        _bubbleSpeedMult = 1f;
+        _bubbleSizeMult = 1f;
         
         // Calm liquid back to idle state
         CalmLiquid(0.3f);

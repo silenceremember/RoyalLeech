@@ -12,7 +12,27 @@ public class IconEffectPreset : ScriptableObject
     public float fillWaveStrength = 0.02f;
     public float fillWaveSpeed = 3f;
     [Range(0, 0.15f)] public float meniscusStrength = 0.04f;
-    [Range(0.05f, 0.2f)] public float bubbleSize = 0.1f;
+    [Range(0.02f, 0.25f)] public float bubbleSize = 0.08f;
+    [Range(0, 1)] public float bubbleDensity = 0.4f;
+    [Range(0.1f, 2f)] public float bubbleSpeed = 0.6f;
+    [Tooltip("0 = smooth, 8-32 = pixelated bubbles")]
+    public float bubblePixelation = 0f;
+    
+    [Header("Bubble Tier Modifiers")]
+    [Tooltip("Speed multiplier for Minor tier (smaller changes = slower bubbles)")]
+    [Range(0.3f, 1f)] public float bubbleSpeedMinor = 0.5f;
+    [Tooltip("Speed multiplier for Normal tier")]
+    [Range(0.8f, 1.2f)] public float bubbleSpeedNormal = 1.0f;
+    [Tooltip("Speed multiplier for Major tier (bigger changes = faster bubbles)")]
+    [Range(1f, 2f)] public float bubbleSpeedMajor = 1.5f;
+    
+    [Tooltip("Size multiplier for Minor tier")]
+    [Range(0.5f, 1f)] public float bubbleSizeMinor = 0.7f;
+    [Tooltip("Size multiplier for Normal tier")]
+    [Range(0.8f, 1.2f)] public float bubbleSizeNormal = 1.0f;
+    [Tooltip("Size multiplier for Major tier")]
+    [Range(1f, 1.5f)] public float bubbleSizeMajor = 1.2f;
+    
     [Tooltip("0 = off, 32-128 = pixelated")]
     public float pixelDensity = 0f;
     

@@ -17,8 +17,4 @@ public class IconColorPreset : ScriptableObject
     [Range(0, 1)]
     [Tooltip("Blend of background color (0 = black, 1 = full color)")]
     public float backgroundAlpha = 0.7f;
-    
-    [Header("Bubble Colors")]
-    [Tooltip("Color of bubbles (alpha = opacity)")]
-    public Color bubbleColor = new Color(0.7f, 0.9f, 1f, 0.7f);
 }

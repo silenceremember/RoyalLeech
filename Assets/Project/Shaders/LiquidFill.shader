@@ -17,9 +17,11 @@ Shader "RoyalLeech/UI/LiquidFill"
         [Header(Liquid Effects)]
         _MeniscusStrength ("Meniscus", Range(0, 0.15)) = 0.04
         _LiquidTurbulence ("Turbulence", Range(0, 1)) = 0.0
-        _BubbleIntensity ("Bubbles", Range(0, 1)) = 0.0
-        _BubbleSize ("Bubble Size", Range(0.05, 0.2)) = 0.1
-        _BubbleColor ("Bubble Color", Color) = (0.7, 0.9, 1.0, 0.8)
+        _BubbleIntensity ("Bubble Intensity", Range(0, 1)) = 0.0
+        _BubbleSize ("Bubble Size", Range(0.02, 0.25)) = 0.08
+        _BubbleDensity ("Bubble Density", Range(0, 1)) = 0.4
+        _BubbleSpeed ("Bubble Speed", Range(0.1, 2)) = 0.6
+        _BubblePixelation ("Bubble Pixelation (0=smooth)", Float) = 0
         _SplashIntensity ("Splash", Range(0, 1)) = 0.0
         
         [Header(Pixelation)]
@@ -122,7 +124,9 @@ Shader "RoyalLeech/UI/LiquidFill"
                 float _LiquidTurbulence;
                 float _BubbleIntensity;
                 float _BubbleSize;
-                float4 _BubbleColor;
+                float _BubbleDensity;
+                float _BubbleSpeed;
+                float _BubblePixelation;
                 float _SplashIntensity;
                 float _PixelDensity;
                 
@@ -190,36 +194,80 @@ Shader "RoyalLeech/UI/LiquidFill"
                 return surface;
             }
             
-            // BUBBLES
-            float getBubbles(float2 uv, float fillLine, float time)
+            // BOILING BUBBLES - Single layer with realistic physics
+            // Bubbles rise from bottom, wobble naturally, pop near surface
+            // Separate pixelation control
+            float getBoilingBubbles(float2 uv, float time, float seedOffset, float2 originalUV)
             {
-                if (_BubbleIntensity < 0.01) return 0.0;
-                
-                // Smooth fade near surface instead of hard cutoff
-                float distToSurface = fillLine - uv.y;
-                float surfaceFade = smoothstep(0.0, 0.08, distToSurface);
-                if (surfaceFade < 0.01) return 0.0;
+                // Apply bubble-specific pixelation if set
+                float2 bubbleUV = uv;
+                if (_BubblePixelation > 0)
+                {
+                    bubbleUV = floor(uv * _BubblePixelation) / _BubblePixelation;
+                }
                 
                 float bubbles = 0.0;
+                float intensity = _BubbleIntensity;
                 
-                // Big bubbles
-                float2 buv1 = uv * (1.0 / _BubbleSize);
-                buv1.y -= time * 0.5;
-                buv1.x += sin(buv1.y * 2.0 + time) * 0.15;
-                float b1 = hash(floor(buv1));
-                float2 c1 = frac(buv1) - 0.5;
-                bubbles += (1.0 - smoothstep(0.1, 0.35, length(c1))) * step(0.55, b1);
+                // Opacity controlled by intensity - very gradual fade in
+                float opacity = smoothstep(0.0, 0.5, intensity);
+                if (opacity < 0.01) return 0.0;
                 
-                // Medium bubbles  
-                float2 buv2 = uv * (1.0 / (_BubbleSize * 0.6)) + 5.0;
-                buv2.y -= time * 0.7;
-                buv2.x += sin(buv2.y * 3.0 + time * 1.2) * 0.12;
-                float b2 = hash(floor(buv2));
-                float2 c2 = frac(buv2) - 0.5;
-                bubbles += (1.0 - smoothstep(0.08, 0.28, length(c2))) * step(0.5, b2) * 0.6;
+                // Edge fade - bubbles fade near sprite edges
+                float edgeX = 1.0 - abs(originalUV.x - 0.5) * 2.0;
+                float edgeY = 1.0 - abs(originalUV.y - 0.5) * 2.0;
+                float edgeFade = saturate(min(edgeX, edgeY) * 3.5);
                 
-                // Apply intensity with smooth transition and surface fade
-                return saturate(bubbles * _BubbleIntensity * 2.0 * surfaceFade);
+                // Surface fade - bubbles "pop" near top (realistic boiling)
+                // 0 at top (y=1), 1 at bottom (y=0)
+                float surfaceFade = saturate((1.0 - originalUV.y) * 1.8);
+                
+                // Grid scale based on bubble size
+                float scale = 1.0 / _BubbleSize;
+                
+                // Bubble grid
+                float2 buv = bubbleUV * scale + seedOffset;
+                buv.y -= time * _BubbleSpeed; // Rising motion
+                
+                // Natural wobble as bubbles rise
+                float wobblePhase = buv.y * 0.4 + time * 0.5 + seedOffset;
+                buv.x += sin(wobblePhase) * 0.25;
+                
+                // Per-cell calculations
+                float2 cell = floor(buv);
+                float h = hash(cell + seedOffset);
+                float h2 = hash(cell + 0.5 + seedOffset);
+                float h3 = hash(cell + 0.9 + seedOffset);
+                
+                // Position within cell (random offset for variety)
+                float2 c = frac(buv) - 0.5;
+                c += (float2(h2, h3) - 0.5) * 0.4;
+                
+                // Random size variation per bubble
+                float sizeVar = 0.7 + h * 0.6; // 0.7 to 1.3x
+                float radius = 0.35 * sizeVar;
+                
+                // Visibility based on density
+                float visible = step(1.0 - _BubbleDensity, h);
+                
+                // Circle check
+                float dist = length(c);
+                float bubble = step(dist, radius) * visible;
+                
+                bubbles = bubble * surfaceFade;
+                
+                return saturate(bubbles) * edgeFade * opacity;
+            }
+            
+            // Separate patterns for filled and background areas
+            float getBubblesFilled(float2 uv, float time, float2 originalUV)
+            {
+                return getBoilingBubbles(uv, time, 0.0, originalUV);
+            }
+            
+            float getBubblesBackground(float2 uv, float time, float2 originalUV)
+            {
+                return getBoilingBubbles(uv, time, 50.0, originalUV);
             }
             
             Varyings vert(Attributes IN)
@@ -310,9 +358,14 @@ Shader "RoyalLeech/UI/LiquidFill"
                 half4 background = half4(bgColor, texColor.a);
                 half4 filled = texColor * _FillColor;
                 
-                // Bubbles with color (only in filled area, not trailing)
-                float bubbles = getBubbles(pixelUV, fillLine, time);
-                filled.rgb = lerp(filled.rgb, _BubbleColor.rgb, bubbles * _BubbleColor.a);
+                // Bubbles - SEPARATE patterns for filled and background areas
+                float bubblesFilled = getBubblesFilled(pixelUV, time, uv);
+                float bubblesBackground = getBubblesBackground(pixelUV, time, uv);
+                // Filled: lighter bubbles. Background: DARKER bubbles (distinct separation)
+                half3 filledBubbleColor = filled.rgb + 0.18;
+                half3 bgBubbleColor = bgColor * 0.6; // Darker, not lighter
+                filled.rgb = lerp(filled.rgb, filledBubbleColor, bubblesFilled);
+                background.rgb = lerp(background.rgb, bgBubbleColor, bubblesBackground);
                 
                 // TRAILING: solid light color (bright version of fill)
                 half3 trailingColor = filled.rgb + 0.25; // Lighter version
