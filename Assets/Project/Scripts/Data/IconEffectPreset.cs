@@ -71,10 +71,25 @@ public class IconEffectPreset : ScriptableObject
     [Tooltip("Delta > minorThreshold and <= this = Normal effect. Delta > this = Major effect")]
     [Range(5, 30)] public int majorThreshold = 10;
     
-    [Tooltip("Multiplier for Minor effects (e.g. 0.5 = 50% of Normal)")]
+    [Header("Increase (Gain) Tier Multipliers")]
+    [Tooltip("Multiplier for Minor increase effects")]
+    [Range(0.2f, 0.9f)] public float increaseMinorMultiplier = 0.5f;
+    
+    [Tooltip("Multiplier for Major increase effects")]
+    [Range(1.1f, 2f)] public float increaseMajorMultiplier = 1.5f;
+    
+    [Header("Decrease (Loss) Tier Multipliers")]
+    [Tooltip("Multiplier for Minor decrease effects")]
+    [Range(0.2f, 0.9f)] public float decreaseMinorMultiplier = 0.5f;
+    
+    [Tooltip("Multiplier for Major decrease effects")]
+    [Range(1.1f, 2f)] public float decreaseMajorMultiplier = 1.5f;
+    
+    [Header("General Tier Multipliers (bubbles, splash, shake, punch)")]
+    [Tooltip("Multiplier for Minor effects (bubbles, splash, etc.)")]
     [Range(0.2f, 0.9f)] public float minorMultiplier = 0.5f;
     
-    [Tooltip("Multiplier for Major effects (e.g. 1.5 = 150% of Normal)")]
+    [Tooltip("Multiplier for Major effects (bubbles, splash, etc.)")]
     [Range(1.1f, 2f)] public float majorMultiplier = 1.5f;
     
     [Header("Timing")]

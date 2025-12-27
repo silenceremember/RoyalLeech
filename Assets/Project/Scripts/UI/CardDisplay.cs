@@ -804,12 +804,27 @@ public class CardDisplay : MonoBehaviour
                             int absDelta = Mathf.Abs(changes[i]);
                             float tierMultiplier;
                             
-                            if (absDelta <= preset.minorThreshold)
-                                tierMultiplier = preset.minorMultiplier;
-                            else if (absDelta > preset.majorThreshold)
-                                tierMultiplier = preset.majorMultiplier;
+                            // Use separate multipliers for increase vs decrease
+                            if (isIncrease[i])
+                            {
+                                // Increase effect - use increase multipliers
+                                if (absDelta <= preset.minorThreshold)
+                                    tierMultiplier = preset.increaseMinorMultiplier;
+                                else if (absDelta > preset.majorThreshold)
+                                    tierMultiplier = preset.increaseMajorMultiplier;
+                                else
+                                    tierMultiplier = 1f; // Normal
+                            }
                             else
-                                tierMultiplier = 1f; // Normal
+                            {
+                                // Decrease effect - use decrease multipliers
+                                if (absDelta <= preset.minorThreshold)
+                                    tierMultiplier = preset.decreaseMinorMultiplier;
+                                else if (absDelta > preset.majorThreshold)
+                                    tierMultiplier = preset.decreaseMajorMultiplier;
+                                else
+                                    tierMultiplier = 1f; // Normal
+                            }
                             
                             // Each letter applies FULL tier effect
                             effectMultiplierPerLetter[i] = tierMultiplier;

@@ -65,6 +65,10 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
     int MajorThreshold => effectPreset != null ? effectPreset.majorThreshold : 10;
     float MinorMultiplier => effectPreset != null ? effectPreset.minorMultiplier : 0.5f;
     float MajorMultiplier => effectPreset != null ? effectPreset.majorMultiplier : 1.5f;
+    float IncreaseMinorMultiplier => effectPreset != null ? effectPreset.increaseMinorMultiplier : 0.5f;
+    float IncreaseMajorMultiplier => effectPreset != null ? effectPreset.increaseMajorMultiplier : 1.5f;
+    float DecreaseMinorMultiplier => effectPreset != null ? effectPreset.decreaseMinorMultiplier : 0.5f;
+    float DecreaseMajorMultiplier => effectPreset != null ? effectPreset.decreaseMajorMultiplier : 1.5f;
     float EffectDuration => effectPreset != null ? effectPreset.effectDuration : 0.8f;
     float LetterEffectDuration => effectPreset != null ? effectPreset.letterEffectDuration : 0.6f;
     float PulseSpeed => effectPreset != null ? effectPreset.pulseSpeed : 4f;
@@ -693,30 +697,41 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         _currentSequence?.Kill();
         _currentSequence = DOTween.Sequence();
         
-        // Determine effect tier: Minor / Normal / Major
+        // Determine effect tiers: Minor / Normal / Major
         int absDelta = Mathf.Abs(delta);
+        
+        // General multiplier for splash, punch, etc.
         float multiplier;
         if (absDelta <= MinorThreshold)
-            multiplier = MinorMultiplier;      // Minor effect
+            multiplier = MinorMultiplier;
         else if (absDelta > MajorThreshold)
-            multiplier = MajorMultiplier;      // Major effect
+            multiplier = MajorMultiplier;
         else
-            multiplier = 1f;                   // Normal effect
+            multiplier = 1f;
+        
+        // Separate multiplier for increase strength (lighten effect)
+        float increaseMultiplier;
+        if (absDelta <= MinorThreshold)
+            increaseMultiplier = IncreaseMinorMultiplier;
+        else if (absDelta > MajorThreshold)
+            increaseMultiplier = IncreaseMajorMultiplier;
+        else
+            increaseMultiplier = 1f;
         
         // Timing derived from effectDuration
         float punchDur = EffectDuration * 0.4f;
         float fillDur = EffectDuration * 0.5f;
         float fadeDur = EffectDuration * 0.5f;
         
-        // LIQUID SPLASH (scaled by multiplier)
+        // LIQUID SPLASH (scaled by general multiplier)
         PlaySplash(GainSplashIntensity * multiplier, EffectDuration);
         
         // Reset glow
         glowIntensity = 0f;
         _isCriticalGlowActive = false;
         
-        // Set effect intensity (scaled by multiplier)
-        effectIntensity = 1f * multiplier;
+        // Set effect intensity (scaled by INCREASE multiplier)
+        effectIntensity = 1f * increaseMultiplier;
         
         // Scale punch - positive = grow (scaled by multiplier)
         _currentSequence.Append(
@@ -755,15 +770,26 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         _trailingTween?.Kill();
         _currentSequence = DOTween.Sequence();
         
-        // Determine effect tier: Minor / Normal / Major
+        // Determine effect tiers: Minor / Normal / Major
         int absDelta = Mathf.Abs(delta);
+        
+        // General multiplier for splash, shake, punch, etc.
         float multiplier;
         if (absDelta <= MinorThreshold)
-            multiplier = MinorMultiplier;      // Minor effect
+            multiplier = MinorMultiplier;
         else if (absDelta > MajorThreshold)
-            multiplier = MajorMultiplier;      // Major effect
+            multiplier = MajorMultiplier;
         else
-            multiplier = 1f;                   // Normal effect
+            multiplier = 1f;
+        
+        // Separate multiplier for decrease strength (darken effect)
+        float decreaseMultiplier;
+        if (absDelta <= MinorThreshold)
+            decreaseMultiplier = DecreaseMinorMultiplier;
+        else if (absDelta > MajorThreshold)
+            decreaseMultiplier = DecreaseMajorMultiplier;
+        else
+            decreaseMultiplier = 1f;
         
         // Timing derived from effectDuration
         float shakeDur = EffectDuration * 0.4f;
@@ -775,15 +801,15 @@ public class LiquidFillIcon : MonoBehaviour, IMeshModifier
         // Keep trailing at current fill amount, then animate to new value after delay
         // trailingFill stays at current value, actual fill drops immediately
         
-        // LIQUID SPLASH (scaled by multiplier)
+        // LIQUID SPLASH (scaled by general multiplier)
         PlaySplash(LossSplashIntensity * multiplier, EffectDuration);
         
         // Reset glow
         glowIntensity = 0f;
         _isCriticalGlowActive = false;
         
-        // Set effect intensity (negative = darken, scaled by multiplier)
-        effectIntensity = -1f * multiplier;
+        // Set effect intensity (negative = darken, scaled by DECREASE multiplier)
+        effectIntensity = -1f * decreaseMultiplier;
         shakeIntensity = LossShakeIntensity * multiplier;
         
         // Scale punch - NEGATIVE = shrink (scaled by multiplier)

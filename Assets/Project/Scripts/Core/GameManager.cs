@@ -93,6 +93,59 @@ public class GameManager : MonoBehaviour
         // 4. Запускаем игру (Спавн карт)
         InitCards();
     }
+    
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    void Update()
+    {
+        if (UnityEngine.InputSystem.Keyboard.current == null) return;
+        
+        // Debug key 1: Apply +0, +5, +10, +15 to spades, hearts, diamonds, clubs
+        if (UnityEngine.InputSystem.Keyboard.current.digit1Key.wasPressedThisFrame)
+        {
+            Debug.Log("[DEBUG] Applying: ♠+0 ♥+5 ♦+10 ♣+15");
+            ApplyDebugEffect(spadesIcon, 0, true);
+            ApplyDebugEffect(heartsIcon, 5, true);
+            ApplyDebugEffect(diamondsIcon, 10, true);
+            ApplyDebugEffect(clubsIcon, 15, true);
+        }
+        
+        // Debug key 2: Apply -0, -5, -10, -15 to spades, hearts, diamonds, clubs
+        if (UnityEngine.InputSystem.Keyboard.current.digit2Key.wasPressedThisFrame)
+        {
+            Debug.Log("[DEBUG] Applying: ♠-0 ♥-5 ♦-10 ♣-15");
+            ApplyDebugEffect(spadesIcon, 0, false);
+            ApplyDebugEffect(heartsIcon, 5, false);
+            ApplyDebugEffect(diamondsIcon, 10, false);
+            ApplyDebugEffect(clubsIcon, 15, false);
+        }
+        
+        // Debug key 3: Reset all to 50
+        if (UnityEngine.InputSystem.Keyboard.current.digit3Key.wasPressedThisFrame)
+        {
+            Debug.Log("[DEBUG] Resetting all to 50");
+            spades = hearts = diamonds = clubs = 50;
+            if (spadesIcon) spadesIcon.SetFill(0.5f);
+            if (heartsIcon) heartsIcon.SetFill(0.5f);
+            if (diamondsIcon) diamondsIcon.SetFill(0.5f);
+            if (clubsIcon) clubsIcon.SetFill(0.5f);
+        }
+    }
+    
+    void ApplyDebugEffect(LiquidFillIcon icon, int delta, bool isIncrease)
+    {
+        if (icon == null || delta == 0) return;
+        
+        float change = delta / 100f;
+        float newFill = isIncrease 
+            ? Mathf.Clamp01(icon.fillAmount + change)
+            : Mathf.Clamp01(icon.fillAmount - change);
+        
+        if (isIncrease)
+            icon.PlayGainEffect(newFill, delta);
+        else
+            icon.PlayLossEffect(newFill, delta);
+    }
+#endif
 
     void InitCards()
     {
